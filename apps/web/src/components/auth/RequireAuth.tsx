@@ -1,0 +1,35 @@
+import { useEffect, useState, type ReactNode } from 'react';
+import { Navigate } from 'react-router-dom';
+import axios from 'axios';
+import { useAuthStore } from '@/stores/auth-store';
+
+const baseURL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}/api`;
+
+export function RequireAuth({ children }: { children: ReactNode }) {
+  const { accessToken, user, setAuth, clear } = useAuthStore();
+  const [bootstrapped, setBootstrapped] = useState(!!accessToken);
+
+  useEffect(() => {
+    if (accessToken) return;
+    (async () => {
+      try {
+        const { data } = await axios.post(
+          `${baseURL}/auth/refresh`,
+          {},
+          { withCredentials: true },
+        );
+        setAuth(data.accessToken, data.user);
+      } catch {
+        clear();
+      } finally {
+        setBootstrapped(true);
+      }
+    })();
+  }, [accessToken, setAuth, clear]);
+
+  if (!bootstrapped) {
+    return <div className="flex h-full items-center justify-center text-neutral-500">Loading…</div>;
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}

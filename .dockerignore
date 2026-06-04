@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/build
+**/.next
+**/.turbo
+**/.cache
+**/coverage
+**/.env
+**/.env.*
+.git
+.idea
+.vscode
+*.log

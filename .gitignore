@@ -1,0 +1,22 @@
+node_modules
+dist
+build
+.next
+.turbo
+.cache
+coverage
+
+.env
+.env.local
+.env.*.local
+
+*.log
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+apps/api/prisma/migrations/dev.db*
+
+# Claude Code — ignore personal/machine-local config, commit the rest
+.claude/settings.local.json

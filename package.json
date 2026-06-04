@@ -1,0 +1,20 @@
+{
+  "name": "gastapp",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.12.3",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "audit:ci": "pnpm audit --audit-level=moderate"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3"
+  }
+}
