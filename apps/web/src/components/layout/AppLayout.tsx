@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, ListChecks, PieChart, LogOut } from 'lucide-react';
+import { LayoutDashboard, ListChecks, PieChart, Tags, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useLogout } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/expenses', label: 'Expenses', icon: ListChecks },
+  { to: '/categories', label: 'Categories', icon: Tags },
   { to: '/reports', label: 'Reports', icon: PieChart },
 ];
 

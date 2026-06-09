@@ -6,13 +6,15 @@ import {
   createExpenseSchema, type CreateExpenseDto, type Expense, type ImportExpensesResult,
 } from '@gastapp/types';
 import {
-  useCategories, useCreateExpense, useUpdateExpense, useDeleteExpense, useExpenses,
+  useCreateExpense, useUpdateExpense, useDeleteExpense, useExpenses,
   useImportExpenses,
 } from '@/hooks/use-expenses';
+import { useCategories } from '@/hooks/use-categories';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -26,6 +28,7 @@ export function ExpensesPage() {
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
+  const [deleting, setDeleting] = useState<Expense | null>(null);
 
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -78,7 +81,7 @@ export function ExpensesPage() {
                   <Button variant="ghost" size="sm" onClick={() => setEditing(e)}>
                     <Pencil size={14} />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => remove.mutate(e.id)}>
+                  <Button variant="ghost" size="sm" onClick={() => setDeleting(e)}>
                     <Trash2 size={14} />
                   </Button>
                 </td>
@@ -125,6 +128,19 @@ export function ExpensesPage() {
           {editing && <ExpenseForm expense={editing} onDone={() => setEditing(null)} />}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title="Delete expense?"
+        description="This permanently removes the expense. This action cannot be undone."
+        loading={remove.isPending}
+        onConfirm={async () => {
+          if (!deleting) return;
+          await remove.mutateAsync(deleting.id);
+          setDeleting(null);
+        }}
+      />
     </div>
   );
 }
