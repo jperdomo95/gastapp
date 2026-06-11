@@ -6,6 +6,7 @@ import { registerSchema, loginSchema } from '@gastapp/types';
 import type { RegisterDto, LoginDto } from '@gastapp/types';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { AuthService } from './auth.service';
+import { GoogleEnabledGuard } from './google-enabled.guard';
 
 const REFRESH_COOKIE = 'refresh_token';
 
@@ -59,13 +60,13 @@ export class AuthController {
   }
 
   @Get('google')
-  @UseGuards(AuthGuard('google'))
+  @UseGuards(GoogleEnabledGuard, AuthGuard('google'))
   google() {
     // Passport redirects to Google
   }
 
   @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
+  @UseGuards(GoogleEnabledGuard, AuthGuard('google'))
   async googleCallback(@Req() req: Request, @Res() res: Response) {
     const user = req.user as { id: string; email: string; name: string };
     const { refreshToken } = await this.auth.login(user.id, user.email, user.name);
