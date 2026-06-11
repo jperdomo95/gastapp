@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reads pnpm@9.12.3 from the packageManager field in package.json
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Prisma client is needed for api typecheck/build; no database required.
+      # The package's prisma:generate script wraps dotenv with a .env file
+      # that doesn't exist in CI, so call prisma directly.
+      - run: pnpm --filter @gastapp/api exec prisma generate
+
+      # NOTE: `pnpm lint` is omitted — the lint scripts reference eslint, but
+      # eslint is not installed/configured in this repo yet. Add it back once
+      # ESLint is set up.
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build

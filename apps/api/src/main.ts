@@ -17,17 +17,22 @@ async function bootstrap() {
     credentials: true,
   });
   app.setGlobalPrefix('api');
+  app.enableShutdownHooks();
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
-  const swagger = new DocumentBuilder()
-    .setTitle('GastApp API')
-    .setVersion('0.1.0')
-    .addBearerAuth()
-    .build();
-  SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swagger));
+  if (process.env.NODE_ENV !== 'production') {
+    const swagger = new DocumentBuilder()
+      .setTitle('GastApp API')
+      .setVersion('0.1.0')
+      .addBearerAuth()
+      .build();
+    SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swagger));
+  }
 
-  const port = config.get<number>('API_PORT', 3001);
+  // Railway injects PORT; API_PORT remains the local-dev override.
+  const port = Number(process.env.PORT ?? config.get<number>('API_PORT', 3001));
   await app.listen(port);
-  console.log(`API listening on http://localhost:${port}`);
+  console.log(`API listening on port ${port}`);
 }
 
 bootstrap();

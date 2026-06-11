@@ -8,8 +8,10 @@ import { AuthService } from '../auth.service';
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(config: ConfigService, private readonly auth: AuthService) {
     super({
-      clientID: config.get<string>('GOOGLE_CLIENT_ID', ''),
-      clientSecret: config.get<string>('GOOGLE_CLIENT_SECRET', ''),
+      // passport-oauth2 throws on a falsy clientID; placeholder keeps the API
+      // booting when Google OAuth is not configured (routes become inert).
+      clientID: config.get<string>('GOOGLE_CLIENT_ID') || 'google-oauth-disabled',
+      clientSecret: config.get<string>('GOOGLE_CLIENT_SECRET') || 'google-oauth-disabled',
       callbackURL: config.get<string>(
         'GOOGLE_CALLBACK_URL',
         'http://localhost:3001/api/auth/google/callback',

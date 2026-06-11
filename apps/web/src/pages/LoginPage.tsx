@@ -7,8 +7,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-const apiBase = `${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}/api`;
+import { API_BASE, GOOGLE_AUTH_ENABLED } from '@/lib/env';
 
 export function LoginPage() {
   const login = useLogin();
@@ -42,12 +41,16 @@ export function LoginPage() {
             {login.isPending ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>
-        <div className="my-4 flex items-center gap-2 text-xs text-neutral-400">
-          <div className="h-px flex-1 bg-neutral-200" /> OR <div className="h-px flex-1 bg-neutral-200" />
-        </div>
-        <Button variant="secondary" className="w-full" asChild>
-          <a href={`${apiBase}/auth/google`}>Continue with Google</a>
-        </Button>
+        {GOOGLE_AUTH_ENABLED && (
+          <>
+            <div className="my-4 flex items-center gap-2 text-xs text-neutral-400">
+              <div className="h-px flex-1 bg-neutral-200" /> OR <div className="h-px flex-1 bg-neutral-200" />
+            </div>
+            <Button variant="secondary" className="w-full" asChild>
+              <a href={`${API_BASE}/auth/google`}>Continue with Google</a>
+            </Button>
+          </>
+        )}
         <p className="mt-6 text-center text-sm text-neutral-500">
           No account?{' '}
           <Link to="/register" className="text-brand hover:underline">Create one</Link>

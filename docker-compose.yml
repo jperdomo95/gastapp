@@ -43,9 +43,10 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
+        VITE_ENABLE_GOOGLE: ${VITE_ENABLE_GOOGLE:-true}
     container_name: gastapp-web
-    environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
     ports:
       - "5173:80"
     depends_on:

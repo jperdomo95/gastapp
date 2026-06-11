@@ -2,8 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuthStore } from '@/stores/auth-store';
-
-const baseURL = `${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}/api`;
+import { API_BASE } from '@/lib/env';
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { accessToken, user, setAuth, clear } = useAuthStore();
@@ -14,7 +13,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const { data } = await axios.post(
-          `${baseURL}/auth/refresh`,
+          `${API_BASE}/auth/refresh`,
           {},
           { withCredentials: true },
         );

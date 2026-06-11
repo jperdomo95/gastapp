@@ -13,6 +13,11 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY packages/types packages/types
 COPY apps/web apps/web
 
+ARG VITE_API_URL
+ARG VITE_ENABLE_GOOGLE
+ENV VITE_API_URL=$VITE_API_URL \
+    VITE_ENABLE_GOOGLE=$VITE_ENABLE_GOOGLE
+
 RUN pnpm --filter @gastapp/web build
 
 # --- runtime ---
