@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type {
-  CreateExpenseDto, UpdateExpenseDto, Expense, ListExpensesQuery, Category,
+  CreateExpenseDto, UpdateExpenseDto, Expense, ListExpensesQuery,
   ImportExpensesResult,
 } from '@gastapp/types';
 
@@ -32,14 +32,6 @@ export function useImportExpenses() {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
     },
-  });
-}
-
-export function useCategories() {
-  return useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => (await api.get<Category[]>('/categories')).data,
-    staleTime: 5 * 60 * 1000,
   });
 }
 
