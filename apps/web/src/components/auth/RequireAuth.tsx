@@ -27,7 +27,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   }, [accessToken, setAuth, clear]);
 
   if (!bootstrapped) {
-    return <div className="flex h-full items-center justify-center text-neutral-500">Loading…</div>;
+    return <div className="flex h-full items-center justify-center text-pulse-faint">Loading…</div>;
   }
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;

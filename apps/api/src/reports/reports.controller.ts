@@ -26,4 +26,12 @@ export class ReportsController {
   ) {
     return this.reports.categoryBreakdown(user.id, q);
   }
+
+  @Get('top-merchants')
+  topMerchants(
+    @CurrentUser() user: AuthUser,
+    @Query(new ZodValidationPipe(reportRangeQuerySchema)) q: ReportRangeQuery,
+  ) {
+    return this.reports.topMerchants(user.id, q);
+  }
 }

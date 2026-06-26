@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pencil, Trash2, Upload } from 'lucide-react';
 import {
   createExpenseSchema, type CreateExpenseDto, type Expense, type ImportExpensesResult,
 } from '@gastapp/types';
@@ -10,7 +10,11 @@ import {
   useImportExpenses,
 } from '@/hooks/use-expenses';
 import { useCategories } from '@/hooks/use-categories';
+import { useMonthlyTotals } from '@/hooks/use-reports';
+import { useThemeStore } from '@/stores/theme-store';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogTrigger, DialogClose } from '@/components/ui/dialog';
@@ -18,14 +22,66 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { catSoft, catTint, usd, SYSTEM_CATEGORY_HUES } from '@/lib/pulse';
 
 const PAGE_SIZE = 25;
 
+type FilterPeriod = 'all' | 'month';
+
+function monthRange() {
+  const now = new Date();
+  return {
+    from: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).toISOString(),
+    to:   new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString(),
+  };
+}
+
+function groupByDay(expenses: Expense[]): Array<{ label: string; date: string; items: Expense[]; dayTotal: number }> {
+  const map = new Map<string, Expense[]>();
+  for (const e of expenses) {
+    const key = e.date.slice(0, 10);
+    const arr = map.get(key) ?? [];
+    arr.push(e);
+    map.set(key, arr);
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  return Array.from(map.entries()).map(([date, items]) => {
+    const d = new Date(date + 'T12:00:00');
+    const label =
+      date === today ? 'Today' :
+      date === yesterday ? 'Yesterday' :
+      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const dayTotal = items.reduce((acc, e) => acc + Number(e.amount), 0);
+    return { label, date, items, dayTotal };
+  });
+}
+
 export function ExpensesPage() {
   const [page, setPage] = useState(1);
-  const { data } = useExpenses({ page, pageSize: PAGE_SIZE });
+  const [period, setPeriod] = useState<FilterPeriod>('month');
+  const [filterCat, setFilterCat] = useState<string>('');
+  const { theme } = useThemeStore();
+
+  const range = useMemo(() => monthRange(), []);
+  const { data: monthlyData } = useMonthlyTotals(range);
+  const { data: categories } = useCategories();
+
+  const thisMonthKey = useMemo(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+  const thisMonthTotal = Number(monthlyData?.find((m) => m.month === thisMonthKey)?.total ?? 0);
+
+  const query = useMemo(() => ({
+    page,
+    pageSize: PAGE_SIZE,
+    ...(period === 'month' ? { from: range.from, to: range.to } : {}),
+    ...(filterCat ? { categoryId: filterCat } : {}),
+  }), [page, period, filterCat, range]);
+
+  const { data } = useExpenses(query);
   const remove = useDeleteExpense();
-  const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [deleting, setDeleting] = useState<Expense | null>(null);
@@ -35,105 +91,143 @@ export function ExpensesPage() {
   const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const rangeEnd = Math.min(page * PAGE_SIZE, total);
 
-  return (
-    <div className="space-y-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Expenses</h1>
-        <div className="flex items-center gap-2">
-          <Dialog open={importOpen} onOpenChange={setImportOpen}>
-            <DialogTrigger asChild>
-              <Button variant="secondary"><Upload size={16} /> Import CSV</Button>
-            </DialogTrigger>
-            <DialogContent title="Import bank CSV">
-              <ImportForm onDone={() => setImportOpen(false)} />
-            </DialogContent>
-          </Dialog>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button><Plus size={16} /> New expense</Button>
-            </DialogTrigger>
-            <DialogContent title="New expense">
-              <ExpenseForm onDone={() => setOpen(false)} />
-            </DialogContent>
-          </Dialog>
-        </div>
-      </header>
+  const groups = useMemo(() => groupByDay(data?.items ?? []), [data]);
 
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-neutral-50 text-left text-xs uppercase text-neutral-500">
-            <tr>
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Description</th>
-              <th className="px-4 py-3 text-right">Amount</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {data?.items.map((e) => (
-              <tr key={e.id} className="border-t border-neutral-100">
-                <td className="px-4 py-3 text-neutral-500">{e.date.slice(0, 10)}</td>
-                <td className="px-4 py-3">{e.description ?? '—'}</td>
-                <td className="px-4 py-3 text-right font-medium">
-                  {e.currency} {e.amount}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <Button variant="ghost" size="sm" onClick={() => setEditing(e)}>
-                    <Pencil size={14} />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setDeleting(e)}>
-                    <Trash2 size={14} />
-                  </Button>
-                </td>
-              </tr>
-            ))}
-            {data && data.items.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-12 text-center text-neutral-500">No expenses yet.</td></tr>
-            )}
-          </tbody>
-        </table>
+  return (
+    <div className="space-y-5">
+      {/* Summary strip */}
+      <div
+        className="rounded-pulse-card p-4"
+        style={{ background: 'linear-gradient(135deg, rgba(124,92,255,0.20), rgba(34,211,238,0.08))' }}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-pulse-dim">This month</p>
+            <p className="mt-0.5 text-2xl font-bold text-pulse-text">${usd(thisMonthTotal)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-widest text-pulse-dim">Entries</p>
+            <p className="mt-0.5 text-2xl font-bold text-pulse-text">{total}</p>
+          </div>
+        </div>
       </div>
 
-      {total > 0 && (
-        <div className="flex items-center justify-between text-sm text-neutral-500">
-          <span>
-            Showing {rangeStart}–{rangeEnd} of {total}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              <ChevronLeft size={14} /> Prev
-            </Button>
-            <span className="tabular-nums">
-              Page {page} of {totalPages}
+      {/* Filter chips + actions */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto">
+          <Chip active={period === 'all'} onClick={() => { setPeriod('all'); setPage(1); }}>
+            All time
+          </Chip>
+          <Chip active={period === 'month'} onClick={() => { setPeriod('month'); setPage(1); }}>
+            This month
+          </Chip>
+          <Select value={filterCat} onValueChange={(v) => { setFilterCat(v); setPage(1); }}>
+            <SelectTrigger className="h-8 w-auto min-w-[120px] rounded-pulse-chip text-xs">
+              <SelectValue placeholder="Category ▾" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All categories</SelectItem>
+              {categories?.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Dialog open={importOpen} onOpenChange={setImportOpen}>
+          <DialogTrigger asChild>
+            <Button variant="secondary" size="sm"><Upload size={14} /> CSV</Button>
+          </DialogTrigger>
+          <DialogContent title="Import bank CSV">
+            <ImportForm onDone={() => setImportOpen(false)} />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Grouped ledger */}
+      {groups.length === 0 && (
+        <Card className="py-16 text-center">
+          <p className="text-pulse-faint">No expenses yet.</p>
+        </Card>
+      )}
+
+      {groups.map((group) => (
+        <div key={group.date}>
+          <div className="mb-2 flex items-center justify-between px-1">
+            <span className="text-sm font-semibold text-pulse-text">{group.label}</span>
+            <span className="text-xs text-pulse-faint">
+              {new Date(group.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              {' · '}−${usd(group.dayTotal)}
             </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Next <ChevronRight size={14} />
+          </div>
+          <Card className="overflow-hidden">
+            <div className="divide-y divide-pulse-stroke">
+              {group.items.map((e) => {
+                const cat = categories?.find((c) => c.id === e.categoryId);
+                const hue = SYSTEM_CATEGORY_HUES[cat?.name ?? ''] ?? 230;
+                const initial = (e.description ?? cat?.name ?? '?')[0]?.toUpperCase() ?? '?';
+                return (
+                  <div key={e.id} className="flex items-center gap-3 px-4 py-3">
+                    <div
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+                      style={{ background: catSoft(hue, theme), color: catTint(hue, theme) }}
+                    >
+                      {initial}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-pulse-text">
+                        {e.description ?? 'Expense'}
+                      </p>
+                      <p className="text-xs text-pulse-faint">{cat?.name ?? '—'}</p>
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold text-pulse-text">
+                      −${usd(Number(e.amount))}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <Button variant="ghost" size="sm" onClick={() => setEditing(e)}>
+                        <Pencil size={13} />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleting(e)}>
+                        <Trash2 size={13} />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      ))}
+
+      {/* Pagination */}
+      {total > 0 && (
+        <div className="flex items-center justify-between text-xs text-pulse-faint">
+          <span>Showing {rangeStart}–{rangeEnd} of {total}</span>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              <ChevronLeft size={13} />
+            </Button>
+            <span className="tabular-nums">{page} / {totalPages}</span>
+            <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+              <ChevronRight size={13} />
             </Button>
           </div>
         </div>
       )}
 
+      {/* Edit dialog */}
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent title="Edit expense">
           {editing && <ExpenseForm expense={editing} onDone={() => setEditing(null)} />}
         </DialogContent>
       </Dialog>
 
+      {/* Delete dialog */}
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(o) => !o && setDeleting(null)}
         title="Delete expense?"
-        description="This permanently removes the expense. This action cannot be undone."
+        description="This permanently removes the expense."
         loading={remove.isPending}
         onConfirm={async () => {
           if (!deleting) return;
@@ -156,12 +250,12 @@ function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: () => voi
     resolver: zodResolver(createExpenseSchema),
     defaultValues: expense
       ? {
-        amount: expense.amount,
-        currency: expense.currency,
-        description: expense.description ?? undefined,
-        date: expense.date,
-        categoryId: expense.categoryId,
-      }
+          amount: expense.amount,
+          currency: expense.currency,
+          description: expense.description ?? undefined,
+          date: expense.date,
+          categoryId: expense.categoryId,
+        }
       : { currency: 'USD', date: new Date(today).toISOString() },
   });
   const categoryId = watch('categoryId');
@@ -183,7 +277,7 @@ function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: () => voi
         <div className="space-y-1.5">
           <Label htmlFor="amount">Amount</Label>
           <Input id="amount" placeholder="0.00" {...register('amount')} />
-          {errors.amount && <p className="text-xs text-red-600">{errors.amount.message}</p>}
+          {errors.amount && <p className="text-xs text-red-400">{errors.amount.message}</p>}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="date">Date</Label>
@@ -206,7 +300,7 @@ function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: () => voi
             ))}
           </SelectContent>
         </Select>
-        {errors.categoryId && <p className="text-xs text-red-600">Required</p>}
+        {errors.categoryId && <p className="text-xs text-red-400">Required</p>}
       </div>
 
       <div className="space-y-1.5">
@@ -246,29 +340,25 @@ function ImportForm({ onDone }: { onDone: () => void }) {
     }
   };
 
-  // After a successful import, show the summary instead of the form.
   if (result) {
     return (
       <div className="space-y-4">
-        <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4 text-sm">
-          <p className="font-medium text-neutral-800">
+        <Card className="p-4 text-sm">
+          <p className="font-semibold text-pulse-text">
             Imported {result.imported} expense{result.imported === 1 ? '' : 's'}.
           </p>
-          <p className="text-neutral-500">
-            {result.skipped} row{result.skipped === 1 ? '' : 's'} skipped (credits / non-debit rows).
+          <p className="text-pulse-dim">
+            {result.skipped} row{result.skipped === 1 ? '' : 's'} skipped (credits).
           </p>
           {result.errors.length > 0 && (
-            <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-amber-700">
+            <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-amber-400">
               {result.errors.slice(0, 8).map((e) => (
                 <li key={e.line}>Line {e.line}: {e.reason}</li>
               ))}
               {result.errors.length > 8 && <li>…and {result.errors.length - 8} more</li>}
             </ul>
           )}
-        </div>
-        <p className="text-xs text-neutral-500">
-          The imported entries were all filed under the category you picked — edit them individually here.
-        </p>
+        </Card>
         <div className="flex justify-end pt-2">
           <Button onClick={onDone}>Done</Button>
         </div>
@@ -278,11 +368,9 @@ function ImportForm({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-neutral-500">
-        Upload a CSV exported from your bank. Money-out rows (debits) are imported as expenses under
-        a single category; credits and refunds are skipped. You can fix categories afterwards.
+      <p className="text-sm text-pulse-dim">
+        Upload a CSV exported from your bank. Debit rows are imported; credits are skipped.
       </p>
-
       <div className="space-y-1.5">
         <Label>Category for all imported rows</Label>
         <Select value={categoryId} onValueChange={setCategoryId}>
@@ -294,19 +382,11 @@ function ImportForm({ onDone }: { onDone: () => void }) {
           </SelectContent>
         </Select>
       </div>
-
       <div className="space-y-1.5">
         <Label htmlFor="csv">CSV file</Label>
-        <Input
-          id="csv"
-          type="file"
-          accept=".csv,text/csv"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-        />
+        <Input id="csv" type="file" accept=".csv,text/csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
       </div>
-
-      {error && <p className="text-xs text-red-600">{error}</p>}
-
+      {error && <p className="text-xs text-red-400">{error}</p>}
       <div className="flex justify-end gap-2 pt-2">
         <DialogClose asChild>
           <Button type="button" variant="ghost">Cancel</Button>

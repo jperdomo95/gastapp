@@ -2,4 +2,108 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root { height: 100%; }
+/* ─── Pulse design tokens ─────────────────────────────────────────────────── */
+
+:root {
+  /* Dark palette (default) */
+  --pulse-bg:           #0a0b1a;
+  --pulse-bg-soft:      #10122a;
+  --pulse-text:         #eef0ff;
+  --pulse-dim:          #8a8db0;
+  --pulse-faint:        #5d6086;
+  --pulse-glass:        rgba(255, 255, 255, 0.045);
+  --pulse-glass-hi:     rgba(255, 255, 255, 0.08);
+  --pulse-stroke:       rgba(255, 255, 255, 0.08);
+  --pulse-track:        rgba(255, 255, 255, 0.06);
+  --pulse-grid:         rgba(255, 255, 255, 0.05);
+  --pulse-bar-inactive: rgba(255, 255, 255, 0.12);
+  --pulse-nav-bg:       rgba(18, 19, 38, 0.72);
+  --pulse-sheet-bg:     rgba(16, 18, 40, 0.92);
+  --pulse-scrim:        rgba(5, 6, 16, 0.62);
+  --pulse-handle:       rgba(255, 255, 255, 0.18);
+  --pulse-v1:           #7c5cff;
+  --pulse-v2:           #22d3ee;
+  --pulse-card-shadow:  none;
+  --pulse-hero-bg:      linear-gradient(135deg, rgba(124, 92, 255, 0.20), rgba(34, 211, 238, 0.08));
+  --pulse-hero-text:    linear-gradient(100deg, #eef0ff, #22d3ee);
+  --pulse-glow-a:       rgba(124, 92, 255, 0.33);
+  --pulse-glow-b:       rgba(34, 211, 238, 0.20);
+}
+
+.light {
+  --pulse-bg:           #f4f5fb;
+  --pulse-bg-soft:      #ffffff;
+  --pulse-text:         #181a2e;
+  --pulse-dim:          #6c7090;
+  --pulse-faint:        #a2a5c0;
+  --pulse-glass:        #ffffff;
+  --pulse-glass-hi:     #ffffff;
+  --pulse-stroke:       rgba(24, 26, 46, 0.08);
+  --pulse-track:        rgba(24, 26, 46, 0.07);
+  --pulse-grid:         rgba(24, 26, 46, 0.06);
+  --pulse-bar-inactive: rgba(24, 26, 46, 0.10);
+  --pulse-nav-bg:       rgba(255, 255, 255, 0.82);
+  --pulse-sheet-bg:     rgba(255, 255, 255, 0.96);
+  --pulse-scrim:        rgba(20, 22, 45, 0.34);
+  --pulse-handle:       rgba(24, 26, 46, 0.18);
+  --pulse-v1:           #6f54ff;
+  --pulse-v2:           #0fb6d6;
+  --pulse-card-shadow:  0 8px 24px rgba(24, 26, 46, 0.06), 0 1px 2px rgba(24, 26, 46, 0.04);
+  --pulse-hero-bg:      linear-gradient(135deg, rgba(111, 84, 255, 0.13), rgba(15, 182, 214, 0.06));
+  --pulse-hero-text:    linear-gradient(100deg, #6f54ff, #0fb6d6);
+  --pulse-glow-a:       rgba(111, 84, 255, 0.15);
+  --pulse-glow-b:       rgba(15, 182, 214, 0.12);
+}
+
+/* ─── Base ────────────────────────────────────────────────────────────────── */
+
+html, body, #root {
+  height: 100%;
+  font-family: 'Sora', sans-serif;
+  background-color: var(--pulse-bg);
+  color: var(--pulse-text);
+}
+
+/* ─── Gradient utilities ──────────────────────────────────────────────────── */
+
+@layer utilities {
+  .gradient-accent {
+    background: linear-gradient(135deg, var(--pulse-v1), var(--pulse-v2));
+  }
+
+  .gradient-hero-text {
+    background: var(--pulse-hero-text);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .gradient-hero-bg {
+    background: var(--pulse-hero-bg);
+  }
+
+  .pulse-caret::after {
+    content: '';
+    display: inline-block;
+    width: 2px;
+    height: 0.85em;
+    background: var(--pulse-v2);
+    margin-left: 3px;
+    vertical-align: middle;
+    border-radius: 1px;
+    animation: pulse-blink 1s step-end infinite;
+  }
+
+  @keyframes pulse-blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+  }
+
+  .pulse-glow-a {
+    background: radial-gradient(ellipse 600px 400px at 80% 0%, var(--pulse-glow-a), transparent 70%);
+  }
+  .pulse-glow-b {
+    background: radial-gradient(ellipse 500px 500px at 10% 55%, var(--pulse-glow-b), transparent 70%);
+  }
+}

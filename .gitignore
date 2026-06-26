@@ -20,3 +20,13 @@ apps/api/prisma/migrations/dev.db*
 
 # Claude Code — ignore personal/machine-local config, commit the rest
 .claude/settings.local.json
+
+# design-sync — generated/machine-local artifacts (commit everything else in .design-sync/)
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules/
+.design-sync/dist/
+.design-sync/compiled.css
+.design-sync/pkg/

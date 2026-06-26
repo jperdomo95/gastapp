@@ -12,12 +12,12 @@ export const SelectTrigger = forwardRef<
   return (
     <SelectPrimitive.Trigger
       ref={ref}
-      className={`flex h-10 w-full items-center justify-between rounded-md border border-neutral-200 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 ${className}`}
+      className={`flex h-10 w-full items-center justify-between rounded-md border border-pulse-stroke bg-pulse-glass px-3 text-sm text-pulse-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pulse-v2 focus-visible:ring-offset-1 focus-visible:ring-offset-pulse-bg data-[placeholder]:text-pulse-faint ${className}`}
       {...props}
     >
       {children}
       <SelectPrimitive.Icon>
-        <ChevronDown size={16} className="opacity-60" />
+        <ChevronDown size={16} className="text-pulse-faint" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -33,7 +33,7 @@ export function SelectContent({
       <SelectPrimitive.Content
         position="popper"
         sideOffset={4}
-        className={`z-50 max-h-72 overflow-hidden rounded-md border border-neutral-200 bg-white shadow-lg ${className}`}
+        className={`z-50 max-h-72 overflow-hidden rounded-md border border-pulse-stroke bg-pulse-bg-soft shadow-pulse-card backdrop-blur-xl ${className}`}
         {...props}
       >
         <SelectPrimitive.Viewport className="p-1">{children}</SelectPrimitive.Viewport>
@@ -49,10 +49,10 @@ export function SelectItem({
 }: ComponentPropsWithoutRef<typeof SelectPrimitive.Item>) {
   return (
     <SelectPrimitive.Item
-      className={`relative flex cursor-pointer select-none items-center rounded px-7 py-1.5 text-sm outline-none data-[highlighted]:bg-neutral-100 ${className}`}
+      className={`relative flex cursor-pointer select-none items-center rounded px-7 py-1.5 text-sm text-pulse-text outline-none data-[highlighted]:bg-pulse-glass-hi data-[state=checked]:text-pulse-v2 ${className}`}
       {...props}
     >
-      <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+      <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center text-pulse-v2">
         <SelectPrimitive.ItemIndicator>
           <Check size={14} />
         </SelectPrimitive.ItemIndicator>

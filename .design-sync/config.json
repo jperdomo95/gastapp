@@ -1,0 +1,16 @@
+{
+  "projectId": "5f5b4ba1-ca0b-49db-b495-50cf654fa306",
+  "shape": "package",
+  "pkg": "gastapp-ui",
+  "globalName": "GastAppUI",
+  "srcDir": "apps/web/src/components/ui",
+  "tsconfig": "../apps/web/tsconfig.json",
+  "cssEntry": "compiled.css",
+  "runtimeFontPrefixes": ["Sora"],
+  "buildCmd": "cd apps/web && pnpm exec tailwindcss -i src/index.css -o ../../.design-sync/compiled.css --config tailwind.config.ts --content 'src/**/*.{tsx,ts,jsx,js}'",
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Dialog": { "cardMode": "single", "viewport": "560x480" },
+    "ConfirmDialog": { "cardMode": "single", "viewport": "480x360" }
+  }
+}

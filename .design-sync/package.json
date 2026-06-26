@@ -1,0 +1,5 @@
+{
+  "name": "gastapp-ui",
+  "version": "0.1.0",
+  "types": "dist/.design-sync/ui-entry.d.ts"
+}

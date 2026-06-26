@@ -14,6 +14,13 @@ export const categoryBreakdownSchema = z.object({
 });
 export type CategoryBreakdown = z.infer<typeof categoryBreakdownSchema>;
 
+export const topMerchantSchema = z.object({
+  merchant: z.string(),
+  count: z.number().int(),
+  total: z.string(),
+});
+export type TopMerchant = z.infer<typeof topMerchantSchema>;
+
 export const reportRangeQuerySchema = z.object({
   from: z.string().datetime(),
   to: z.string().datetime(),

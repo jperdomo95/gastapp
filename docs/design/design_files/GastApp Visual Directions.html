@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GastApp — Visual Directions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Sora:wght@300;400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body { background: #e9e6e1; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="directions/data.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="directions/DirectionTerminal.jsx"></script>
+  <script type="text/babel" src="directions/DirectionNeon.jsx"></script>
+  <script type="text/babel" src="directions/DirectionEditorial.jsx"></script>
+  <script type="text/babel" src="directions/pulse-kit.jsx"></script>
+  <script type="text/babel" src="directions/pulse-desktop-kit.jsx"></script>
+  <script type="text/babel" src="directions/PulseExpenses.jsx"></script>
+  <script type="text/babel" src="directions/PulseCategories.jsx"></script>
+  <script type="text/babel" src="directions/PulseAddExpense.jsx"></script>
+  <script type="text/babel" src="directions/PulseReports.jsx"></script>
+  <script type="text/babel" src="directions/PulseDesktop.jsx"></script>
+  <script type="text/babel" src="directions/PulseDesktopExpenses.jsx"></script>
+  <script type="text/babel" src="directions/PulseDesktopCategories.jsx"></script>
+  <script type="text/babel" src="directions/PulseDesktopReports.jsx"></script>
+  <script type="text/babel" src="directions/PulseDesktopAdd.jsx"></script>
+
+  <script type="text/babel">
+    const { DesignCanvas, DCSection, DCArtboard } = window;
+
+    function App() {
+      return (
+        <DesignCanvas>
+          <DCSection
+            id="dashboard"
+            title="GastApp Dashboard — Visual Directions"
+            subtitle="Three bold, dark-mode mobile takes. Same data, different soul.">
+            <DCArtboard id="terminal" label="A · Ledger — terminal, acid lime" width={390} height={1180}>
+              <DirectionTerminal />
+            </DCArtboard>
+            <DCArtboard id="neon" label="B · Pulse — neon fintech, glow" width={390} height={1250}>
+              <DirectionNeon />
+            </DCArtboard>
+            <DCArtboard id="editorial" label="C · Atlas — editorial warm dark" width={390} height={1210}>
+              <DirectionEditorial />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection
+            id="pulse-app"
+            title="Pulse — App Screens"
+            subtitle="The winning direction extended across the core screens.">
+            <DCArtboard id="p-dash" label="Dashboard" width={390} height={1250}>
+              <DirectionNeon />
+            </DCArtboard>
+            <DCArtboard id="p-expenses" label="Expenses · list + filters" width={390} height={1197}>
+              <PulseExpenses />
+            </DCArtboard>
+            <DCArtboard id="p-add" label="Add expense · sheet" width={390} height={844}>
+              <PulseAddExpense />
+            </DCArtboard>
+            <DCArtboard id="p-cats" label="Categories" width={390} height={912}>
+              <PulseCategories />
+            </DCArtboard>
+            <DCArtboard id="p-reports" label="Reports · full charts" width={390} height={1255}>
+              <PulseReports />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection
+            id="pulse-light"
+            title="Pulse — Light Mode"
+            subtitle="The same screens on a clean light surface. Violet→cyan accent carries over; cards become soft white with gentle shadows.">
+            <DCArtboard id="l-dash" label="Dashboard" width={390} height={1250}>
+              <DirectionNeon theme="light" />
+            </DCArtboard>
+            <DCArtboard id="l-expenses" label="Expenses · list + filters" width={390} height={1197}>
+              <PulseExpenses theme="light" />
+            </DCArtboard>
+            <DCArtboard id="l-add" label="Add expense · sheet" width={390} height={844}>
+              <PulseAddExpense theme="light" />
+            </DCArtboard>
+            <DCArtboard id="l-cats" label="Categories" width={390} height={912}>
+              <PulseCategories theme="light" />
+            </DCArtboard>
+            <DCArtboard id="l-reports" label="Reports · full charts" width={390} height={1255}>
+              <PulseReports theme="light" />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection
+            id="pulse-desktop"
+            title="Pulse — Desktop"
+            subtitle="The full app as a 1440-wide web product: shared sidebar + topbar, every core screen, both themes.">
+            <DCArtboard id="d-dash" label="Dashboard · dark" width={1440} height={1090}>
+              <PulseDesktop theme="dark" />
+            </DCArtboard>
+            <DCArtboard id="d-expenses" label="Expenses · dark" width={1440} height={1090}>
+              <PulseDesktopExpenses theme="dark" />
+            </DCArtboard>
+            <DCArtboard id="d-add" label="Add expense · dark" width={1440} height={1090}>
+              <PulseDesktopAdd theme="dark" />
+            </DCArtboard>
+            <DCArtboard id="d-cats" label="Categories · dark" width={1440} height={1090}>
+              <PulseDesktopCategories theme="dark" />
+            </DCArtboard>
+            <DCArtboard id="d-reports" label="Reports · dark" width={1440} height={1090}>
+              <PulseDesktopReports theme="dark" />
+            </DCArtboard>
+            <DCArtboard id="dl-dash" label="Dashboard · light" width={1440} height={1090}>
+              <PulseDesktop theme="light" />
+            </DCArtboard>
+            <DCArtboard id="dl-expenses" label="Expenses · light" width={1440} height={1090}>
+              <PulseDesktopExpenses theme="light" />
+            </DCArtboard>
+            <DCArtboard id="dl-add" label="Add expense · light" width={1440} height={1090}>
+              <PulseDesktopAdd theme="light" />
+            </DCArtboard>
+            <DCArtboard id="dl-cats" label="Categories · light" width={1440} height={1090}>
+              <PulseDesktopCategories theme="light" />
+            </DCArtboard>
+            <DCArtboard id="dl-reports" label="Reports · light" width={1440} height={1090}>
+              <PulseDesktopReports theme="light" />
+            </DCArtboard>
+          </DCSection>
+        </DesignCanvas>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

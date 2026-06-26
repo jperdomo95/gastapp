@@ -46,4 +46,27 @@ export class ReportsService {
         : Number(r.total.div(grandTotal).mul(100).toFixed(2)),
     }));
   }
+
+  async topMerchants(userId: string, q: ReportRangeQuery) {
+    const rows = await this.prisma.$queryRaw<
+      { merchant: string; count: bigint; total: Prisma.Decimal }[]
+    >`
+      SELECT "description" AS merchant,
+             COUNT(*)      AS count,
+             SUM("amount")::numeric(12,2) AS total
+      FROM "Expense"
+      WHERE "userId" = ${userId}
+        AND "date" >= ${new Date(q.from)}
+        AND "date" <= ${new Date(q.to)}
+        AND "description" IS NOT NULL
+      GROUP BY "description"
+      ORDER BY total DESC
+      LIMIT 10
+    `;
+    return rows.map((r) => ({
+      merchant: r.merchant,
+      count: Number(r.count),
+      total: r.total.toFixed(2),
+    }));
+  }
 }
