@@ -6,7 +6,7 @@ import {
 import { useCategoryBreakdown, useMonthlyTotals, useTopMerchants } from '@/hooks/use-reports';
 import { useThemeStore } from '@/stores/theme-store';
 import { Card } from '@/components/ui/card';
-import { catColor, usd, SYSTEM_CATEGORY_HUES } from '@/lib/pulse';
+import { catColor, catHue, usd } from '@/lib/pulse';
 
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -176,7 +176,7 @@ export function ReportsPage() {
                   cornerRadius={3}
                 >
                   {catData.map((c) => {
-                    const hue = SYSTEM_CATEGORY_HUES[c.categoryName] ?? 230;
+                    const hue = catHue(c.categoryName, c.categoryColor);
                     return <Cell key={c.categoryId} fill={catColor(hue, theme)} />;
                   })}
                 </Pie>
@@ -184,7 +184,7 @@ export function ReportsPage() {
             </div>
             <div className="flex-1 space-y-2 min-w-0">
               {catData.map((c) => {
-                const hue = SYSTEM_CATEGORY_HUES[c.categoryName] ?? 230;
+                const hue = catHue(c.categoryName, c.categoryColor);
                 return (
                   <div key={c.categoryId} className="flex items-center gap-2 text-xs">
                     <span

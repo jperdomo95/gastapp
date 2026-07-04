@@ -14,6 +14,15 @@ export const SYSTEM_CATEGORY_HUES: Record<string, number> = {
   'Other':           230,
 };
 
+/**
+ * Hue for a category: the user-picked hex color wins; system categories
+ * (color = null) fall back to their named hue, then to 230.
+ */
+export function catHue(name: string, color?: string | null): number {
+  if (color) return parseInt(color.replace('#', ''), 16) % 360;
+  return SYSTEM_CATEGORY_HUES[name] ?? 230;
+}
+
 type Theme = 'dark' | 'light';
 
 /** Returns the category dot/bar/stroke color for a given hue. */

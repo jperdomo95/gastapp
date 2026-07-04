@@ -4,10 +4,11 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useExpenses } from '@/hooks/use-expenses';
+import { useCategories } from '@/hooks/use-categories';
 import { useMonthlyTotals, useCategoryBreakdown } from '@/hooks/use-reports';
 import { useThemeStore } from '@/stores/theme-store';
 import { Card } from '@/components/ui/card';
-import { catColor, catSoft, catTint, usd, SYSTEM_CATEGORY_HUES } from '@/lib/pulse';
+import { catColor, catHue, catSoft, catTint, usd } from '@/lib/pulse';
 
 function monthRange(monthsBack = 0) {
   const now = new Date();
@@ -27,14 +28,6 @@ function sixMonthRange() {
 
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function catHue(name: string, color: string | null): number {
-  if (color) {
-    const n = parseInt(color.replace('#', ''), 16);
-    return n % 360;
-  }
-  return SYSTEM_CATEGORY_HUES[name] ?? 230;
-}
-
 export function DashboardPage() {
   const { theme } = useThemeStore();
 
@@ -46,6 +39,12 @@ export function DashboardPage() {
   const { data: catData }  = useCategoryBreakdown(thisMonth);
   const { data: lastData } = useMonthlyTotals(lastMonth);
   const { data: recent }   = useExpenses({ pageSize: 5 });
+  const { data: categories } = useCategories();
+
+  const catById = useMemo(
+    () => new Map((categories ?? []).map((c) => [c.id, c])),
+    [categories],
+  );
 
   const thisMonthKey = useMemo(() => {
     const n = new Date();
@@ -139,7 +138,7 @@ export function DashboardPage() {
                   cornerRadius={3}
                 >
                   {catData.map((c) => {
-                    const hue = catHue(c.categoryName, null);
+                    const hue = catHue(c.categoryName, c.categoryColor);
                     return <Cell key={c.categoryId} fill={catColor(hue, theme)} />;
                   })}
                 </Pie>
@@ -153,7 +152,7 @@ export function DashboardPage() {
             {/* Ranked list */}
             <div className="flex-1 space-y-2.5 min-w-0">
               {catData.slice(0, 5).map((c) => {
-                const hue = catHue(c.categoryName, null);
+                const hue = catHue(c.categoryName, c.categoryColor);
                 return (
                   <div key={c.categoryId}>
                     <div className="flex items-center justify-between text-xs mb-1">
@@ -249,7 +248,8 @@ export function DashboardPage() {
           </div>
           <div className="divide-y divide-pulse-stroke">
             {recent.items.map((e) => {
-              const hue = SYSTEM_CATEGORY_HUES['Other'] ?? 230;
+              const cat = catById.get(e.categoryId);
+              const hue = cat ? catHue(cat.name, cat.color) : 230;
               const initial = (e.description ?? '?')[0]?.toUpperCase() ?? '?';
               return (
                 <div key={e.id} className="flex items-center gap-3 px-5 py-3">

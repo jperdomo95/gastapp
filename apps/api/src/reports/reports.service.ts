@@ -23,23 +23,25 @@ export class ReportsService {
 
   async categoryBreakdown(userId: string, q: ReportRangeQuery) {
     const rows = await this.prisma.$queryRaw<
-      { categoryId: string; categoryName: string; total: Prisma.Decimal }[]
+      { categoryId: string; categoryName: string; categoryColor: string | null; total: Prisma.Decimal }[]
     >`
       SELECT c."id" AS "categoryId",
              c."name" AS "categoryName",
+             c."color" AS "categoryColor",
              SUM(e."amount")::numeric(12,2) AS total
       FROM "Expense" e
       JOIN "Category" c ON c."id" = e."categoryId"
       WHERE e."userId" = ${userId}
         AND e."date" >= ${new Date(q.from)}
         AND e."date" <= ${new Date(q.to)}
-      GROUP BY c."id", c."name"
+      GROUP BY c."id", c."name", c."color"
       ORDER BY total DESC
     `;
     const grandTotal = rows.reduce((acc, r) => acc.add(r.total), new Prisma.Decimal(0));
     return rows.map((r) => ({
       categoryId: r.categoryId,
       categoryName: r.categoryName,
+      categoryColor: r.categoryColor,
       total: r.total.toFixed(2),
       percentage: grandTotal.isZero()
         ? 0

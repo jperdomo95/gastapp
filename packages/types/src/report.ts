@@ -9,6 +9,7 @@ export type MonthlyTotal = z.infer<typeof monthlyTotalSchema>;
 export const categoryBreakdownSchema = z.object({
   categoryId: z.string(),
   categoryName: z.string(),
+  categoryColor: z.string().nullable(),
   total: z.string(),
   percentage: z.number().min(0).max(100),
 });

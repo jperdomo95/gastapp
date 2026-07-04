@@ -9,7 +9,7 @@ import { useCategories } from '@/hooks/use-categories';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { catSoft, catTint, SYSTEM_CATEGORY_HUES } from '@/lib/pulse';
+import { catHue, catSoft, catTint } from '@/lib/pulse';
 import { useThemeStore } from '@/stores/theme-store';
 
 interface Props {
@@ -151,9 +151,7 @@ function SheetBody({
       {/* Category chips */}
       <div className="flex flex-wrap gap-2">
         {categories.map((cat) => {
-          const hue = cat.color
-            ? parseInt(cat.color.replace('#', ''), 16) % 360
-            : SYSTEM_CATEGORY_HUES[cat.name] ?? 230;
+          const hue = catHue(cat.name, cat.color);
           const isSelected = selectedCat === cat.id;
           return (
             <button
