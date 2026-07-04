@@ -1,15 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "CommonJS",
-    "moduleResolution": "Node",
     "rootDir": "src",
-    "outDir": "dist",
+    "outDir": "dist/esm",
     "declaration": true,
-    "declarationMap": true,
-    "module": "CommonJS",
-    "moduleResolution": "Node"
+    "declarationMap": true
   },
   "include": ["src/**/*"]
 }
-
