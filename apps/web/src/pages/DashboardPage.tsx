@@ -3,7 +3,6 @@ import {
   AreaChart, Area, PieChart, Pie, Cell, XAxis, Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { useAuthStore } from '@/stores/auth-store';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useMonthlyTotals, useCategoryBreakdown } from '@/hooks/use-reports';
 import { useThemeStore } from '@/stores/theme-store';
@@ -37,7 +36,6 @@ function catHue(name: string, color: string | null): number {
 }
 
 export function DashboardPage() {
-  const user = useAuthStore((s) => s.user);
   const { theme } = useThemeStore();
 
   const thisMonth = useMemo(() => monthRange(0), []);

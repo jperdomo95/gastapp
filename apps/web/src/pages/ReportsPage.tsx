@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  AreaChart, Area, PieChart, Pie, Cell,
+  XAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { useCategoryBreakdown, useMonthlyTotals, useTopMerchants } from '@/hooks/use-reports';
 import { useThemeStore } from '@/stores/theme-store';
@@ -31,11 +31,9 @@ export function ReportsPage() {
 
   const sixMonths  = useMemo(() => sixMonthRange(), []);
   const thisMonth  = useMemo(() => monthRange(0), []);
-  const lastMonth  = useMemo(() => monthRange(1), []);
 
   const { data: monthly }    = useMonthlyTotals(sixMonths);
   const { data: catData }    = useCategoryBreakdown(thisMonth);
-  const { data: lastCat }    = useCategoryBreakdown(lastMonth);
   const { data: merchants }  = useTopMerchants(thisMonth);
 
   const thisMonthKey = useMemo(() => {

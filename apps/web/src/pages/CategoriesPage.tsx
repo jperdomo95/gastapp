@@ -16,7 +16,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { catColor, catSoft, catTint, usd, SYSTEM_CATEGORY_HUES } from '@/lib/pulse';
+import { catColor, catSoft, catTint, SYSTEM_CATEGORY_HUES } from '@/lib/pulse';
 
 function catHue(cat: Category): number {
   if (cat.color) {
