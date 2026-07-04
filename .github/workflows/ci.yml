@@ -30,9 +30,11 @@ jobs:
       # that doesn't exist in CI, so call prisma directly.
       - run: pnpm --filter @gastapp/api exec prisma generate
 
-      # NOTE: `pnpm lint` is omitted — the lint scripts reference eslint, but
-      # eslint is not installed/configured in this repo yet. Add it back once
-      # ESLint is set up.
+      # @gastapp/types resolves through dist/ (dual CJS/ESM build), so it must
+      # be built before anything that imports it can typecheck.
+      - run: pnpm --filter @gastapp/types build
+
+      - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
