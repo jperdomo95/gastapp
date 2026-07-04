@@ -9,13 +9,13 @@
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests",
-    "prisma:generate": "dotenv -e ../../.env -- prisma generate",
-    "prisma:migrate": "dotenv -e ../../.env -- prisma migrate dev",
-    "prisma:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
-    "prisma:seed": "dotenv -e ../../.env -- node --import tsx prisma/seed.ts"
+    "prisma:generate": "dotenv -e ../../.env.local -e ../../.env -- prisma generate",
+    "prisma:migrate": "dotenv -e ../../.env.local -e ../../.env -- prisma migrate dev",
+    "prisma:deploy": "dotenv -e ../../.env.local -e ../../.env -- prisma migrate deploy",
+    "prisma:seed": "dotenv -e ../../.env.local -e ../../.env -- node --import tsx prisma/seed.ts"
   },
   "prisma": {
-    "seed": "dotenv -e ../../.env -- node --import tsx prisma/seed.ts"
+    "seed": "dotenv -e ../../.env.local -e ../../.env -- node --import tsx prisma/seed.ts"
   },
   "dependencies": {
     "@gastapp/types": "workspace:*",

@@ -2,8 +2,8 @@ import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards, UsePipes } 
 import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
-import { registerSchema, loginSchema } from '@gastapp/types';
-import type { RegisterDto, LoginDto } from '@gastapp/types';
+import { registerSchema } from '@gastapp/types';
+import type { RegisterDto } from '@gastapp/types';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { AuthService } from './auth.service';
 import { GoogleEnabledGuard } from './google-enabled.guard';
@@ -25,11 +25,13 @@ export class AuthController {
     return rest;
   }
 
+  // No body pipe here: guards run before pipes, so a ZodValidationPipe on this
+  // route can never execute — the local strategy owns credential checking and
+  // malformed payloads surface as 401, matching wrong-password responses.
   @Post('login')
   @HttpCode(200)
   @UseGuards(AuthGuard('local'))
   async login(
-    @Body(new ZodValidationPipe(loginSchema)) _dto: LoginDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {

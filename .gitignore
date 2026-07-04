@@ -30,3 +30,7 @@ ds-bundle/
 .design-sync/dist/
 .design-sync/compiled.css
 .design-sync/pkg/
+
+# Playwright artifacts
+test-results/
+playwright-report/

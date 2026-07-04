@@ -218,7 +218,7 @@ export function parseBankCsv(text: string): ParseResult {
     }
 
     // Determine the debit (money-out) amount for this row.
-    let outflow: number | null = null;
+    let outflow: number;
     const debitRaw = cell(cols.debit);
     if (cols.debit || cols.credit) {
       if (debitRaw) {
@@ -247,7 +247,7 @@ export function parseBankCsv(text: string): ParseResult {
       }
     }
 
-    if (outflow === null || outflow === 0) {
+    if (outflow === 0) {
       skipped++;
       return;
     }

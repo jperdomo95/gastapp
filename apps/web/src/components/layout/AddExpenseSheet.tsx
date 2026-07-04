@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { createExpenseSchema, type CreateExpenseDto } from '@gastapp/types';
+import { z } from 'zod';
 import { useCreateExpense } from '@/hooks/use-expenses';
 import { useCategories } from '@/hooks/use-categories';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,16 @@ interface Props {
 
 const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'] as const;
 
+// Only the fields react-hook-form owns; amount and category are component
+// state, so validating the full createExpenseSchema here can never pass.
+// The date input yields YYYY-MM-DD; onSubmit converts it to the ISO datetime
+// the API's schema requires.
+const sheetFormSchema = z.object({
+  date: z.string().min(1, 'Date is required'),
+  description: z.string().max(280).optional(),
+});
+type SheetForm = z.infer<typeof sheetFormSchema>;
+
 export function AddExpenseSheet({ open, onOpenChange }: Props) {
   const { theme } = useThemeStore();
   const { data: categories } = useCategories();
@@ -27,8 +37,8 @@ export function AddExpenseSheet({ open, onOpenChange }: Props) {
   const [amount, setAmount] = useState('0');
   const [selectedCat, setSelectedCat] = useState<string>('');
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateExpenseDto>({
-    resolver: zodResolver(createExpenseSchema),
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<SheetForm>({
+    resolver: zodResolver(sheetFormSchema),
   });
 
   function handleKey(key: string) {
@@ -41,6 +51,12 @@ export function AddExpenseSheet({ open, onOpenChange }: Props) {
     });
   }
 
+  function handleAmountInput(value: string) {
+    const clean = value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, '');
+    if (!/^\d*\.?\d{0,2}$/.test(clean)) return;
+    setAmount(clean === '' ? '0' : clean);
+  }
+
   function handleClose() {
     setAmount('0');
     setSelectedCat('');
@@ -48,9 +64,16 @@ export function AddExpenseSheet({ open, onOpenChange }: Props) {
     onOpenChange(false);
   }
 
-  async function onSubmit(data: CreateExpenseDto) {
+  async function onSubmit(data: SheetForm) {
     if (!selectedCat || Number(amount) <= 0) return;
-    await create.mutateAsync({ ...data, amount, categoryId: selectedCat });
+    await create.mutateAsync({
+      amount: Number(amount).toFixed(2),
+      currency: 'USD',
+      description: data.description || undefined,
+      // Noon local time keeps the calendar day stable across timezones.
+      date: new Date(`${data.date}T12:00:00`).toISOString(),
+      categoryId: selectedCat,
+    });
     handleClose();
   }
 
@@ -59,33 +82,15 @@ export function AddExpenseSheet({ open, onOpenChange }: Props) {
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-[var(--pulse-scrim)] backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
 
-        {/* Desktop: centered modal */}
+        {/* Single Content, responsive: bottom sheet below md, centered modal at md+.
+            A Dialog.Root must have exactly one Content — a second one registers a
+            competing dismissable layer and the dialog closes as soon as it opens. */}
         <DialogPrimitive.Content
           aria-describedby={undefined}
-          className="fixed left-1/2 top-1/2 z-50 hidden w-full max-w-[540px] -translate-x-1/2 -translate-y-1/2 rounded-pulse-card border border-pulse-stroke bg-[var(--pulse-sheet-bg)] p-6 shadow-pulse-card backdrop-blur-xl data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 md:block"
+          className="fixed z-50 border-pulse-stroke bg-[var(--pulse-sheet-bg)] shadow-pulse-card backdrop-blur-xl data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 inset-x-0 bottom-0 rounded-t-pulse-sheet border-t px-5 pb-8 pt-3 max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom md:inset-x-auto md:bottom-auto md:left-1/2 md:top-1/2 md:w-full md:max-w-[540px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-pulse-card md:border md:p-6 md:data-[state=open]:zoom-in-95"
         >
-          <SheetBody
-            amount={amount}
-            selectedCat={selectedCat}
-            setSelectedCat={setSelectedCat}
-            categories={categories ?? []}
-            theme={theme}
-            register={register}
-            errors={errors}
-            onKeypad={undefined}
-            onSubmit={handleSubmit(onSubmit)}
-            onClose={handleClose}
-            loading={create.isPending}
-          />
-        </DialogPrimitive.Content>
-
-        {/* Mobile: bottom sheet */}
-        <DialogPrimitive.Content
-          aria-describedby={undefined}
-          className="fixed inset-x-0 bottom-0 z-50 rounded-t-pulse-sheet border-t border-pulse-stroke bg-[var(--pulse-sheet-bg)] px-5 pb-8 pt-3 shadow-pulse-card backdrop-blur-xl data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom md:hidden"
-        >
-          {/* Grabber */}
-          <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[var(--pulse-handle)]" />
+          {/* Grabber (bottom sheet only) */}
+          <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[var(--pulse-handle)] md:hidden" />
           <SheetBody
             amount={amount}
             selectedCat={selectedCat}
@@ -95,6 +100,7 @@ export function AddExpenseSheet({ open, onOpenChange }: Props) {
             register={register}
             errors={errors}
             onKeypad={handleKey}
+            onAmountChange={handleAmountInput}
             onSubmit={handleSubmit(onSubmit)}
             onClose={handleClose}
             loading={create.isPending}
@@ -107,16 +113,17 @@ export function AddExpenseSheet({ open, onOpenChange }: Props) {
 
 function SheetBody({
   amount, selectedCat, setSelectedCat, categories, theme,
-  register, errors, onKeypad, onSubmit, onClose, loading,
+  register, errors, onKeypad, onAmountChange, onSubmit, onClose, loading,
 }: {
   amount: string;
   selectedCat: string;
   setSelectedCat: (id: string) => void;
   categories: Array<{ id: string; name: string; icon: string | null; color: string | null; isSystem: boolean; expenseCount: number }>;
   theme: 'dark' | 'light';
-  register: ReturnType<typeof useForm<CreateExpenseDto>>['register'];
-  errors: ReturnType<typeof useForm<CreateExpenseDto>>['formState']['errors'];
-  onKeypad: ((key: string) => void) | undefined;
+  register: ReturnType<typeof useForm<SheetForm>>['register'];
+  errors: ReturnType<typeof useForm<SheetForm>>['formState']['errors'];
+  onKeypad: (key: string) => void;
+  onAmountChange: (value: string) => void;
   onSubmit: React.FormEventHandler;
   onClose: () => void;
   loading: boolean;
@@ -166,6 +173,18 @@ function SheetBody({
         })}
       </div>
 
+      {/* Amount input (desktop; mobile enters via the keypad) */}
+      <div className="hidden md:block">
+        <Label htmlFor="ae-amount">Amount</Label>
+        <Input
+          id="ae-amount"
+          inputMode="decimal"
+          className="mt-1"
+          value={amount}
+          onChange={(e) => onAmountChange(e.target.value)}
+        />
+      </div>
+
       {/* Date + Note */}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -191,20 +210,18 @@ function SheetBody({
       </div>
 
       {/* Numeric keypad (mobile only) */}
-      {onKeypad && (
-        <div className="grid grid-cols-3 gap-2">
-          {KEYPAD.map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => onKeypad(k)}
-              className="flex h-12 items-center justify-center rounded-xl bg-pulse-glass text-lg font-medium text-pulse-text transition-colors hover:bg-pulse-glass-hi active:scale-95"
-            >
-              {k}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-3 gap-2 md:hidden">
+        {KEYPAD.map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => onKeypad(k)}
+            className="flex h-12 items-center justify-center rounded-xl bg-pulse-glass text-lg font-medium text-pulse-text transition-colors hover:bg-pulse-glass-hi active:scale-95"
+          >
+            {k}
+          </button>
+        ))}
+      </div>
 
       <Button
         type="submit"

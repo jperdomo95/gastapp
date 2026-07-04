@@ -41,9 +41,10 @@ export function AppLayout() {
         <div className="pulse-glow-b absolute inset-0" />
       </div>
 
-      {/* Desktop layout */}
-      <div className="relative z-10 hidden h-full md:grid md:grid-cols-[248px_1fr]">
-        <aside className="flex h-full flex-col border-r border-pulse-stroke bg-[var(--pulse-nav-bg)] backdrop-blur-xl">
+      {/* One layout tree with a single <Outlet/> — pages must mount exactly once.
+          The sidebar/header/bottom-nav chrome swaps responsively around it. */}
+      <div className="relative z-10 h-full md:grid md:grid-cols-[248px_1fr]">
+        <aside className="hidden h-full flex-col border-r border-pulse-stroke bg-[var(--pulse-nav-bg)] backdrop-blur-xl md:flex">
           <div className="px-6 py-6">
             <span className="gradient-hero-text text-xl font-bold tracking-tight">Pulse</span>
           </div>
@@ -93,7 +94,8 @@ export function AppLayout() {
         </aside>
 
         <div className="flex h-full flex-col overflow-hidden bg-pulse-bg">
-          <header className="flex h-16 shrink-0 items-center justify-between border-b border-pulse-stroke px-8">
+          {/* Desktop header */}
+          <header className="hidden h-16 shrink-0 items-center justify-between border-b border-pulse-stroke px-8 md:flex">
             <div>
               <h1 className="text-lg font-bold text-pulse-text">{page.title}</h1>
               {page.subtitle && <p className="text-xs text-pulse-faint">{page.subtitle}</p>}
@@ -103,27 +105,22 @@ export function AppLayout() {
             </Button>
           </header>
 
-          <main className="flex-1 overflow-y-auto p-8">
+          {/* Mobile header */}
+          <header className="flex h-14 shrink-0 items-center justify-between border-b border-pulse-stroke px-5 md:hidden">
+            <span className="gradient-hero-text text-base font-bold tracking-tight">Pulse</span>
+            <button onClick={toggle} aria-label="Toggle theme" className="rounded-lg p-1.5 text-pulse-faint">
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+          </header>
+
+          <main className="flex-1 overflow-y-auto p-5 pb-24 md:p-8 md:pb-8">
             <Outlet />
           </main>
         </div>
-      </div>
 
-      {/* Mobile layout */}
-      <div className="relative z-10 flex h-full flex-col bg-pulse-bg md:hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-pulse-stroke px-5">
-          <span className="gradient-hero-text text-base font-bold tracking-tight">Pulse</span>
-          <button onClick={toggle} aria-label="Toggle theme" className="rounded-lg p-1.5 text-pulse-faint">
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-        </header>
-
-        <main className="flex-1 overflow-y-auto px-5 py-5 pb-24">
-          <Outlet />
-        </main>
-
+        {/* Mobile bottom nav */}
         <nav
-          className="fixed bottom-0 inset-x-0 z-20 flex h-[62px] items-center border-t border-pulse-stroke bg-[var(--pulse-nav-bg)] backdrop-blur-xl"
+          className="fixed bottom-0 inset-x-0 z-20 flex h-[62px] items-center border-t border-pulse-stroke bg-[var(--pulse-nav-bg)] backdrop-blur-xl md:hidden"
           aria-label="Main navigation"
         >
           {navItems.slice(0, 2).map(({ to, label, icon: Icon }) => (

@@ -60,7 +60,7 @@ function groupByDay(expenses: Expense[]): Array<{ label: string; date: string; i
 export function ExpensesPage() {
   const [page, setPage] = useState(1);
   const [period, setPeriod] = useState<FilterPeriod>('month');
-  const [filterCat, setFilterCat] = useState<string>('');
+  const [filterCat, setFilterCat] = useState<string>('all');
   const { theme } = useThemeStore();
 
   const range = useMemo(() => monthRange(), []);
@@ -77,7 +77,7 @@ export function ExpensesPage() {
     page,
     pageSize: PAGE_SIZE,
     ...(period === 'month' ? { from: range.from, to: range.to } : {}),
-    ...(filterCat ? { categoryId: filterCat } : {}),
+    ...(filterCat !== 'all' ? { categoryId: filterCat } : {}),
   }), [page, period, filterCat, range]);
 
   const { data } = useExpenses(query);
@@ -126,7 +126,7 @@ export function ExpensesPage() {
               <SelectValue placeholder="Category ▾" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All categories</SelectItem>
+              <SelectItem value="all">All categories</SelectItem>
               {categories?.map((c) => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
               ))}

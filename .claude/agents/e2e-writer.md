@@ -11,12 +11,15 @@ user journey. You drive the real browser — no mocks, no `@testing-library`.
 
 | Route | Page component | Key actions |
 |---|---|---|
-| `/login` | `LoginPage.tsx` | email + password login |
-| `/register` | `RegisterPage.tsx` | register new user |
+| `/` | `DashboardPage.tsx` | summary stats (post-login landing) |
+| `/login` | `LoginPage.tsx` | email + password login, submit button is "Sign in" |
+| `/register` | `RegisterPage.tsx` | register new user, submit button is "Create account" |
 | `/expenses` | `ExpensesPage.tsx` | CRUD expenses, CSV import, pagination |
 | `/categories` | `CategoriesPage.tsx` | CRUD custom categories, delete with reassign |
 | `/reports` | `ReportsPage.tsx` | date-range filter, chart, category breakdown |
-| `/dashboard` | `DashboardPage.tsx` | summary stats |
+
+There is no `/dashboard` route — the dashboard is `/`, and login/register
+redirect there on success.
 
 Auth uses JWT stored as a cookie/localStorage — after login the token is set and
 subsequent navigation stays authenticated.
@@ -37,8 +40,8 @@ export async function loginAs(page: Page, email: string, password: string) {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
-  await page.getByRole('button', { name: 'Login' }).click();
-  await page.waitForURL('/dashboard');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.waitForURL('/');
 }
 
 export async function registerAndLogin(page: Page, email: string, password: string) {
@@ -46,8 +49,8 @@ export async function registerAndLogin(page: Page, email: string, password: stri
   await page.getByLabel('Name').fill('Test User');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
-  await page.getByRole('button', { name: /register/i }).click();
-  await page.waitForURL('/dashboard');
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await page.waitForURL('/');
 }
 ```
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuthStore } from '@/stores/auth-store';
@@ -7,9 +7,12 @@ import { API_BASE } from '@/lib/env';
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { accessToken, user, setAuth, clear } = useAuthStore();
   const [bootstrapped, setBootstrapped] = useState(!!accessToken);
+  const refreshing = useRef(false);
 
   useEffect(() => {
     if (accessToken) return;
+    if (refreshing.current) return;
+    refreshing.current = true;
     (async () => {
       try {
         const { data } = await axios.post(

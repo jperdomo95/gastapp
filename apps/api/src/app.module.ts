@@ -10,7 +10,9 @@ import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: '../../.env' }),
+    // .env.local (dev overrides) wins over .env; neither exists in prod, where
+    // Railway injects variables directly.
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../../.env.local', '../../.env'] }),
     PrismaModule,
     AuthModule,
     UsersModule,
