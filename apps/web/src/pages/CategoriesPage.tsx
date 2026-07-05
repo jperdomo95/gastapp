@@ -16,15 +16,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { catColor, catSoft, catTint, SYSTEM_CATEGORY_HUES } from '@/lib/pulse';
-
-function catHue(cat: Category): number {
-  if (cat.color) {
-    const n = parseInt(cat.color.replace('#', ''), 16);
-    return n % 360;
-  }
-  return SYSTEM_CATEGORY_HUES[cat.name] ?? 230;
-}
+import { catColor, catHue, catSoft, catTint } from '@/lib/pulse';
 
 export function CategoriesPage() {
   const { data: categories } = useCategories();
@@ -51,7 +43,7 @@ export function CategoriesPage() {
       {/* Card grid */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         {categories?.map((cat) => {
-          const hue = catHue(cat);
+          const hue = catHue(cat.name, cat.color);
           return (
             <Card key={cat.id} className="relative p-4">
               {/* System badge */}
