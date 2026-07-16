@@ -23,18 +23,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { catSoft, catTint, usd, SYSTEM_CATEGORY_HUES } from '@/lib/pulse';
+import { currentMonthKey, monthRange, todayDateString } from '@/lib/date-range';
 
 const PAGE_SIZE = 25;
 
 type FilterPeriod = 'all' | 'month';
-
-function monthRange() {
-  const now = new Date();
-  return {
-    from: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).toISOString(),
-    to:   new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString(),
-  };
-}
 
 function groupByDay(expenses: Expense[]): Array<{ label: string; date: string; items: Expense[]; dayTotal: number }> {
   const map = new Map<string, Expense[]>();
@@ -44,8 +37,8 @@ function groupByDay(expenses: Expense[]): Array<{ label: string; date: string; i
     arr.push(e);
     map.set(key, arr);
   }
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const today = todayDateString();
+  const yesterday = todayDateString(new Date(Date.now() - 86400000));
   return Array.from(map.entries()).map(([date, items]) => {
     const d = new Date(date + 'T12:00:00');
     const label =
@@ -63,14 +56,11 @@ export function ExpensesPage() {
   const [filterCat, setFilterCat] = useState<string>('all');
   const { theme } = useThemeStore();
 
-  const range = useMemo(() => monthRange(), []);
+  const range = useMemo(() => monthRange(0), []);
   const { data: monthlyData } = useMonthlyTotals(range);
   const { data: categories } = useCategories();
 
-  const thisMonthKey = useMemo(() => {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
-  }, []);
+  const thisMonthKey = useMemo(() => currentMonthKey(), []);
   const thisMonthTotal = Number(monthlyData?.find((m) => m.month === thisMonthKey)?.total ?? 0);
 
   const query = useMemo(() => ({
@@ -243,8 +233,8 @@ function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: () => voi
   const { data: categories } = useCategories();
   const create = useCreateExpense();
   const update = useUpdateExpense();
-  const today = new Date().toISOString().slice(0, 10);
-  const dateValue = expense ? expense.date.slice(0, 10) : today;
+  const today = todayDateString();
+  const dateValue = expense ? expense.date : today;
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<CreateExpenseDto>({
     resolver: zodResolver(createExpenseSchema),
@@ -256,7 +246,7 @@ function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: () => voi
           date: expense.date,
           categoryId: expense.categoryId,
         }
-      : { currency: 'USD', date: new Date(today).toISOString() },
+      : { currency: 'USD', date: today },
   });
   const categoryId = watch('categoryId');
   const isPending = create.isPending || update.isPending;
@@ -285,7 +275,7 @@ function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: () => voi
             id="date"
             type="date"
             defaultValue={dateValue}
-            onChange={(e) => setValue('date', new Date(e.target.value).toISOString())}
+            onChange={(e) => setValue('date', e.target.value)}
           />
         </div>
       </div>

@@ -26,9 +26,7 @@ describe('parseBankCsv', () => {
     const { rows } = parseBankCsv(LATAM_SAMPLE);
 
     // 02/06/2026 must be June 2nd, not Feb 6th.
-    expect(rows[0]!.date.getFullYear()).toBe(2026);
-    expect(rows[0]!.date.getMonth()).toBe(5); // June (0-based)
-    expect(rows[0]!.date.getDate()).toBe(2);
+    expect(rows[0]!.date).toBe('2026-06-02');
     expect(rows[0]!.amount).toBe('6.85');
     expect(rows[0]!.description).toBe('POS Payment EXAMPLE COFFEE');
 

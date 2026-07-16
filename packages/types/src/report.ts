@@ -23,7 +23,7 @@ export const topMerchantSchema = z.object({
 export type TopMerchant = z.infer<typeof topMerchantSchema>;
 
 export const reportRangeQuerySchema = z.object({
-  from: z.string().datetime(),
-  to: z.string().datetime(),
+  from: z.string().date(),
+  to: z.string().date(),
 });
 export type ReportRangeQuery = z.infer<typeof reportRangeQuerySchema>;

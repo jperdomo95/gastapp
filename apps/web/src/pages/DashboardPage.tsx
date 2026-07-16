@@ -9,22 +9,7 @@ import { useMonthlyTotals, useCategoryBreakdown } from '@/hooks/use-reports';
 import { useThemeStore } from '@/stores/theme-store';
 import { Card } from '@/components/ui/card';
 import { catColor, catHue, catSoft, catTint, usd } from '@/lib/pulse';
-
-function monthRange(monthsBack = 0) {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() - monthsBack;
-  const from = new Date(year, month, 1, 0, 0, 0).toISOString();
-  const to   = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
-  return { from, to };
-}
-
-function sixMonthRange() {
-  const now = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth() - 5, 1, 0, 0, 0).toISOString();
-  const to   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
-  return { from, to };
-}
+import { currentMonthKey, monthRange, trailingMonthsRange } from '@/lib/date-range';
 
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -33,8 +18,9 @@ export function DashboardPage() {
 
   const thisMonth = useMemo(() => monthRange(0), []);
   const lastMonth = useMemo(() => monthRange(1), []);
-  const sixMonths = useMemo(() => sixMonthRange(), []);
+  const sixMonths = useMemo(() => trailingMonthsRange(5), []);
 
+  const { data: thisMonthData } = useMonthlyTotals(thisMonth);
   const { data: trend }    = useMonthlyTotals(sixMonths);
   const { data: catData }  = useCategoryBreakdown(thisMonth);
   const { data: lastData } = useMonthlyTotals(lastMonth);
@@ -46,14 +32,11 @@ export function DashboardPage() {
     [categories],
   );
 
-  const thisMonthKey = useMemo(() => {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
-  }, []);
+  const thisMonthKey = useMemo(() => currentMonthKey(), []);
 
   const thisMonthTotal = useMemo(() => {
-    return Number(trend?.find((m) => m.month === thisMonthKey)?.total ?? 0);
-  }, [trend, thisMonthKey]);
+    return Number(thisMonthData?.[0]?.total ?? 0);
+  }, [thisMonthData]);
 
   const lastMonthTotal = useMemo(() => {
     return Number(lastData?.[0]?.total ?? 0);
@@ -264,7 +247,7 @@ export function DashboardPage() {
                       {e.description ?? 'Expense'}
                     </p>
                     <p className="text-xs text-pulse-faint">
-                      {new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {new Date(`${e.date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </p>
                   </div>
                   <span className="shrink-0 text-sm font-semibold text-pulse-text">

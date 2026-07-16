@@ -13,8 +13,8 @@ export class ReportsService {
              SUM("amount")::numeric(12,2) AS total
       FROM "Expense"
       WHERE "userId" = ${userId}
-        AND "date" >= ${new Date(q.from)}
-        AND "date" <= ${new Date(q.to)}
+        AND "date" >= ${q.from}::date
+        AND "date" <= ${q.to}::date
       GROUP BY 1
       ORDER BY 1 ASC
     `;
@@ -32,8 +32,8 @@ export class ReportsService {
       FROM "Expense" e
       JOIN "Category" c ON c."id" = e."categoryId"
       WHERE e."userId" = ${userId}
-        AND e."date" >= ${new Date(q.from)}
-        AND e."date" <= ${new Date(q.to)}
+        AND e."date" >= ${q.from}::date
+        AND e."date" <= ${q.to}::date
       GROUP BY c."id", c."name", c."color"
       ORDER BY total DESC
     `;
@@ -58,8 +58,8 @@ export class ReportsService {
              SUM("amount")::numeric(12,2) AS total
       FROM "Expense"
       WHERE "userId" = ${userId}
-        AND "date" >= ${new Date(q.from)}
-        AND "date" <= ${new Date(q.to)}
+        AND "date" >= ${q.from}::date
+        AND "date" <= ${q.to}::date
         AND "description" IS NOT NULL
       GROUP BY "description"
       ORDER BY total DESC

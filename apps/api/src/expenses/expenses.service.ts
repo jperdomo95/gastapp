@@ -126,7 +126,7 @@ export class ExpensesService {
     amount: e.amount.toFixed(2),
     currency: e.currency,
     description: e.description,
-    date: e.date.toISOString(),
+    date: e.date.toISOString().slice(0, 10),
     categoryId: e.categoryId,
     createdAt: e.createdAt.toISOString(),
   });
