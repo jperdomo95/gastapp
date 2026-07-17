@@ -33,10 +33,11 @@ export class AuthController {
   @UseGuards(AuthGuard('local'))
   async login(
     @Req() req: Request,
+    @Body('timezone') timezone: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
     const user = req.user as { id: string; email: string; name: string };
-    const { refreshToken, ...rest } = await this.auth.login(user.id, user.email, user.name);
+    const { refreshToken, ...rest } = await this.auth.login(user.id, user.email, user.name, timezone);
     this.setRefreshCookie(res, refreshToken);
     return rest;
   }

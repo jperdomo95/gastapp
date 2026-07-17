@@ -18,7 +18,8 @@ import { parse } from 'csv-parse/sync';
 export interface ParsedExpenseRow {
   /** 1-based line number in the source file, for error reporting. */
   line: number;
-  date: Date;
+  /** Calendar day, YYYY-MM-DD — no time-of-day or timezone. */
+  date: string;
   description: string;
   /** Positive money-out amount, formatted with 2 decimals. */
   amount: string;
@@ -139,13 +140,19 @@ function detectDayFirst(values: string[]): boolean {
   return true;
 }
 
-function parseDate(raw: string, dayFirst: boolean): Date | null {
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** Formats a Date's UTC calendar-day components — never the runtime's local timezone. */
+const toDateString = (d: Date) =>
+  `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+
+function parseDate(raw: string, dayFirst: boolean): string | null {
   const s = raw.trim();
   if (!s) return null;
   // ISO / RFC formats Date understands natively.
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
     const d = new Date(s);
-    return Number.isNaN(d.getTime()) ? null : d;
+    return Number.isNaN(d.getTime()) ? null : toDateString(d);
   }
   const m = s.match(SLASH_DATE);
   if (m) {
@@ -155,11 +162,11 @@ function parseDate(raw: string, dayFirst: boolean): Date | null {
     const second = Number(m[2]);
     const day = dayFirst ? first : second;
     const month = dayFirst ? second : first;
-    const d = new Date(year, month - 1, day);
-    return Number.isNaN(d.getTime()) ? null : d;
+    const d = new Date(Date.UTC(year, month - 1, day));
+    return Number.isNaN(d.getTime()) ? null : `${year}-${pad(month)}-${pad(day)}`;
   }
   const fallback = new Date(s);
-  return Number.isNaN(fallback.getTime()) ? null : fallback;
+  return Number.isNaN(fallback.getTime()) ? null : toDateString(fallback);
 }
 
 export function parseBankCsv(text: string): ParseResult {

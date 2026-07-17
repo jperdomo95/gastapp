@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { catHue, catSoft, catTint } from '@/lib/pulse';
 import { useThemeStore } from '@/stores/theme-store';
+import { todayDateString } from '@/lib/date-range';
 
 interface Props {
   open: boolean;
@@ -21,8 +22,6 @@ const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'] as
 
 // Only the fields react-hook-form owns; amount and category are component
 // state, so validating the full createExpenseSchema here can never pass.
-// The date input yields YYYY-MM-DD; onSubmit converts it to the ISO datetime
-// the API's schema requires.
 const sheetFormSchema = z.object({
   date: z.string().min(1, 'Date is required'),
   description: z.string().max(280).optional(),
@@ -70,8 +69,7 @@ export function AddExpenseSheet({ open, onOpenChange }: Props) {
       amount: Number(amount).toFixed(2),
       currency: 'USD',
       description: data.description || undefined,
-      // Noon local time keeps the calendar day stable across timezones.
-      date: new Date(`${data.date}T12:00:00`).toISOString(),
+      date: data.date,
       categoryId: selectedCat,
     });
     handleClose();
@@ -191,7 +189,7 @@ function SheetBody({
             id="ae-date"
             type="date"
             className="mt-1"
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            defaultValue={todayDateString()}
             {...register('date')}
           />
           {errors.date && <p className="mt-1 text-xs text-red-400">{errors.date.message}</p>}

@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { randomBytes, createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { isValidTimezone } from '../common/timezone';
 import type { RegisterDto, LoginDto, AuthResponse } from '@gastapp/types';
 
 interface JwtPayload {
@@ -25,7 +26,12 @@ export class AuthService {
 
     const passwordHash = await argon2.hash(dto.password);
     const user = await this.prisma.user.create({
-      data: { email: dto.email, name: dto.name, passwordHash },
+      data: {
+        email: dto.email,
+        name: dto.name,
+        passwordHash,
+        ...(dto.timezone && isValidTimezone(dto.timezone) && { timezone: dto.timezone }),
+      },
     });
     return this.issueTokens(user.id, user.email, user.name);
   }
@@ -38,7 +44,10 @@ export class AuthService {
     return user;
   }
 
-  async login(userId: string, email: string, name: string) {
+  async login(userId: string, email: string, name: string, timezone?: string) {
+    if (timezone && isValidTimezone(timezone)) {
+      await this.prisma.user.update({ where: { id: userId }, data: { timezone } });
+    }
     return this.issueTokens(userId, email, name);
   }
 

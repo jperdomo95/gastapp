@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, ListChecks, PieChart, Tags, LogOut, Plus, Moon, Sun,
+  LayoutDashboard, ListChecks, PieChart, Tags, LogOut, Plus, Moon, Sun, Settings,
 } from 'lucide-react';
 import { useState } from 'react';
 import type React from 'react';
@@ -22,6 +22,7 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   '/expenses':   { title: 'Expenses',   subtitle: 'Browse and manage your ledger' },
   '/categories': { title: 'Categories', subtitle: 'Organise your spending' },
   '/reports':    { title: 'Reports',    subtitle: 'Analytics & trends' },
+  '/settings':   { title: 'Settings',   subtitle: 'Account preferences' },
 };
 
 export function AppLayout() {
@@ -86,6 +87,17 @@ export function AppLayout() {
               >
                 {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
               </button>
+              <NavLink
+                to="/settings"
+                aria-label="Settings"
+                className={({ isActive }) =>
+                  `rounded-lg p-1.5 transition-colors hover:bg-pulse-glass hover:text-pulse-text ${
+                    isActive ? 'text-pulse-v2' : 'text-pulse-faint'
+                  }`
+                }
+              >
+                <Settings size={14} />
+              </NavLink>
               <Button variant="ghost" size="sm" onClick={() => logout.mutate()} className="flex-1 justify-start">
                 <LogOut size={14} /> Sign out
               </Button>
@@ -108,9 +120,14 @@ export function AppLayout() {
           {/* Mobile header */}
           <header className="flex h-14 shrink-0 items-center justify-between border-b border-pulse-stroke px-5 md:hidden">
             <span className="gradient-hero-text text-base font-bold tracking-tight">Pulse</span>
-            <button onClick={toggle} aria-label="Toggle theme" className="rounded-lg p-1.5 text-pulse-faint">
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
+            <div className="flex items-center gap-1">
+              <NavLink to="/settings" aria-label="Settings" className="rounded-lg p-1.5 text-pulse-faint">
+                <Settings size={16} />
+              </NavLink>
+              <button onClick={toggle} aria-label="Toggle theme" className="rounded-lg p-1.5 text-pulse-faint">
+                {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              </button>
+            </div>
           </header>
 
           <main className="flex-1 overflow-y-auto p-5 pb-24 md:p-8 md:pb-8">

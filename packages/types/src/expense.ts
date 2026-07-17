@@ -9,7 +9,7 @@ export const expenseSchema = z.object({
   amount: moneyString,
   currency: z.string().length(3),
   description: z.string().nullable(),
-  date: z.string().datetime(),
+  date: z.string().date(),
   categoryId: z.string(),
   createdAt: z.string().datetime(),
 });
@@ -19,7 +19,7 @@ export const createExpenseSchema = z.object({
   amount: moneyString,
   currency: z.string().length(3).default('USD'),
   description: z.string().max(280).optional(),
-  date: z.string().datetime(),
+  date: z.string().date(),
   categoryId: z.string(),
 });
 export type CreateExpenseDto = z.infer<typeof createExpenseSchema>;
@@ -28,8 +28,8 @@ export const updateExpenseSchema = createExpenseSchema.partial();
 export type UpdateExpenseDto = z.infer<typeof updateExpenseSchema>;
 
 export const listExpensesQuerySchema = z.object({
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
+  from: z.string().date().optional(),
+  to: z.string().date().optional(),
   categoryId: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),

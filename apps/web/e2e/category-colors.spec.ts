@@ -33,7 +33,7 @@ test('dashboard breakdown uses each category\'s own color', async ({ page }) => 
         amount,
         currency: 'USD',
         description: `QA ${name}`,
-        date: new Date().toISOString(),
+        date: new Date().toISOString().slice(0, 10),
         categoryId: cat.id,
       },
     });
