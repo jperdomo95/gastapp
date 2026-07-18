@@ -1,5 +1,5 @@
 # --- builder ---
-FROM node:20.11-alpine AS builder
+FROM node:24.18-alpine AS builder
 WORKDIR /repo
 
 RUN corepack enable && corepack prepare pnpm@9.12.3 --activate
@@ -17,7 +17,7 @@ RUN pnpm --filter @gastapp/api prisma generate
 RUN pnpm --filter @gastapp/api build
 
 # --- runtime ---
-FROM node:20.11-alpine AS runtime
+FROM node:24.18-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
