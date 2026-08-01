@@ -18,7 +18,13 @@ function makePrismaMock() {
       count: jest.fn(),
       updateMany: jest.fn(),
     },
-    $transaction: jest.fn(),
+    subscription: {
+      count: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    // Real $transaction resolves an array of operations in order; the counts
+    // and the reassign+delete batch both go through it.
+    $transaction: jest.fn((ops: unknown[]) => Promise.all(ops)),
   };
 }
 
@@ -28,6 +34,7 @@ describe('CategoriesService', () => {
 
   beforeEach(() => {
     prisma = makePrismaMock();
+    prisma.subscription.count.mockResolvedValue(0);
     service = new CategoriesService(prisma as unknown as PrismaService);
   });
 
@@ -58,12 +65,12 @@ describe('CategoriesService', () => {
       await expect(service.remove(USER, 'missing')).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('deletes directly when the category has no expenses', async () => {
+    it('deletes directly when the category is unused', async () => {
       prisma.category.findUnique.mockResolvedValue({ id: 'c1', isSystem: false, userId: USER });
       prisma.expense.count.mockResolvedValue(0);
       await service.remove(USER, 'c1');
       expect(prisma.category.delete).toHaveBeenCalledWith({ where: { id: 'c1' } });
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.expense.updateMany).not.toHaveBeenCalled();
     });
 
     it('throws a conflict when expenses exist and no reassign target is given', async () => {
@@ -73,14 +80,25 @@ describe('CategoriesService', () => {
       expect(prisma.category.delete).not.toHaveBeenCalled();
     });
 
-    it('reassigns expenses then deletes when a target is given', async () => {
+    it('throws a conflict when only subscriptions use the category', async () => {
+      // Subscriptions hold the category on Restrict, so deleting without
+      // reassigning them would fail at the foreign key.
+      prisma.category.findUnique.mockResolvedValue({ id: 'c1', isSystem: false, userId: USER });
+      prisma.expense.count.mockResolvedValue(0);
+      prisma.subscription.count.mockResolvedValue(1);
+      await expect(service.remove(USER, 'c1')).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.category.delete).not.toHaveBeenCalled();
+    });
+
+    it('reassigns expenses and subscriptions, then deletes, when a target is given', async () => {
       prisma.category.findUnique
         .mockResolvedValueOnce({ id: 'c1', isSystem: false, userId: USER }) // target being deleted
         .mockResolvedValueOnce({ id: 'c2', isSystem: false, userId: USER }); // reassign target
       prisma.expense.count.mockResolvedValue(2);
-      prisma.expense.updateMany.mockReturnValue('updateMany-op');
+      prisma.subscription.count.mockResolvedValue(1);
+      prisma.expense.updateMany.mockReturnValue('expense-updateMany-op');
+      prisma.subscription.updateMany.mockReturnValue('subscription-updateMany-op');
       prisma.category.delete.mockReturnValue('delete-op');
-      prisma.$transaction.mockResolvedValue(undefined);
 
       await service.remove(USER, 'c1', 'c2');
 
@@ -88,7 +106,16 @@ describe('CategoriesService', () => {
         where: { categoryId: 'c1' },
         data: { categoryId: 'c2' },
       });
-      expect(prisma.$transaction).toHaveBeenCalledWith(['updateMany-op', 'delete-op']);
+      expect(prisma.subscription.updateMany).toHaveBeenCalledWith({
+        where: { categoryId: 'c1' },
+        data: { categoryId: 'c2' },
+      });
+      // The reassigns must be in the same transaction as the delete.
+      expect(prisma.$transaction).toHaveBeenLastCalledWith([
+        'expense-updateMany-op',
+        'subscription-updateMany-op',
+        'delete-op',
+      ]);
     });
 
     it('rejects reassigning to the category being deleted', async () => {

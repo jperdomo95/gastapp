@@ -2,12 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ReportRangeQuery } from '@gastapp/types';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptions: SubscriptionsService,
+  ) {}
 
   async monthlyTotals(userId: string, q: ReportRangeQuery) {
+    // Recurring charges must exist before we aggregate, or the dashboard
+    // understates the month. Idempotent and a no-op when nothing is due.
+    await this.subscriptions.runDueGenerations(userId);
+
     const rows = await this.prisma.$queryRaw<{ month: string; total: Prisma.Decimal }[]>`
       SELECT to_char(date_trunc('month', "date"), 'YYYY-MM') AS month,
              SUM("amount")::numeric(12,2) AS total
@@ -22,6 +30,8 @@ export class ReportsService {
   }
 
   async categoryBreakdown(userId: string, q: ReportRangeQuery) {
+    await this.subscriptions.runDueGenerations(userId);
+
     const rows = await this.prisma.$queryRaw<
       { categoryId: string; categoryName: string; categoryColor: string | null; total: Prisma.Decimal }[]
     >`
@@ -50,6 +60,8 @@ export class ReportsService {
   }
 
   async topMerchants(userId: string, q: ReportRangeQuery) {
+    await this.subscriptions.runDueGenerations(userId);
+
     const rows = await this.prisma.$queryRaw<
       { merchant: string; count: bigint; total: Prisma.Decimal }[]
     >`

@@ -1,5 +1,5 @@
 import {
-  BadRequestException, ForbiddenException, Injectable, NotFoundException,
+  BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -7,12 +7,20 @@ import type {
   CreateExpenseDto, UpdateExpenseDto, ListExpensesQuery, ImportExpensesResult,
 } from '@gastapp/types';
 import { parseBankCsv } from './csv-import';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class ExpensesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptions: SubscriptionsService,
+  ) {}
 
   async list(userId: string, q: ListExpensesQuery) {
+    // Materialise any recurring charges that have come due, so the ledger is
+    // current whether or not the daily sweep has run. Idempotent.
+    await this.subscriptions.runDueGenerations(userId);
+
     const where: Prisma.ExpenseWhereInput = {
       userId,
       ...(q.categoryId && { categoryId: q.categoryId }),
@@ -87,17 +95,28 @@ export class ExpensesService {
     if (existing.userId !== userId) throw new ForbiddenException();
     if (dto.categoryId) await this.assertCategoryAccessible(userId, dto.categoryId);
 
-    const updated = await this.prisma.expense.update({
-      where: { id },
-      data: {
-        ...(dto.amount && { amount: new Prisma.Decimal(dto.amount) }),
-        ...(dto.currency && { currency: dto.currency }),
-        ...(dto.description !== undefined && { description: dto.description ?? null }),
-        ...(dto.date && { date: new Date(dto.date) }),
-        ...(dto.categoryId && { categoryId: dto.categoryId }),
-      },
-    });
-    return this.serialize(updated);
+    try {
+      const updated = await this.prisma.expense.update({
+        where: { id },
+        data: {
+          ...(dto.amount && { amount: new Prisma.Decimal(dto.amount) }),
+          ...(dto.currency && { currency: dto.currency }),
+          ...(dto.description !== undefined && { description: dto.description ?? null }),
+          ...(dto.date && { date: new Date(dto.date) }),
+          ...(dto.categoryId && { categoryId: dto.categoryId }),
+        },
+      });
+      return this.serialize(updated);
+    } catch (err) {
+      // Moving a generated charge onto a date its subscription already covers
+      // collides with the unique index that keeps generation idempotent.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException(
+          'This subscription already has a charge on that date',
+        );
+      }
+      throw err;
+    }
   }
 
   async remove(userId: string, id: string) {
@@ -120,6 +139,7 @@ export class ExpensesService {
     description: string | null;
     date: Date;
     categoryId: string;
+    subscriptionId: string | null;
     createdAt: Date;
   }) => ({
     id: e.id,
@@ -128,6 +148,7 @@ export class ExpensesService {
     description: e.description,
     date: e.date.toISOString().slice(0, 10),
     categoryId: e.categoryId,
+    subscriptionId: e.subscriptionId,
     createdAt: e.createdAt.toISOString(),
   });
 }

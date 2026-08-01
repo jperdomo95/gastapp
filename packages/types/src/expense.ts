@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const moneyString = z
+export const moneyString = z
   .string()
   .regex(/^\d+(\.\d{1,2})?$/, 'Amount must be a decimal with up to 2 fraction digits');
 
@@ -11,6 +11,9 @@ export const expenseSchema = z.object({
   description: z.string().nullable(),
   date: z.string().date(),
   categoryId: z.string(),
+  // Set when the expense was materialised by a subscription; null for
+  // hand-entered and imported rows.
+  subscriptionId: z.string().nullable(),
   createdAt: z.string().datetime(),
 });
 export type Expense = z.infer<typeof expenseSchema>;

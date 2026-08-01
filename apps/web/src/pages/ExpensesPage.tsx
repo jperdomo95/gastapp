@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronLeft, ChevronRight, Pencil, Trash2, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pencil, Repeat, Trash2, Upload } from 'lucide-react';
 import {
   createExpenseSchema, type CreateExpenseDto, type Expense, type ImportExpensesResult,
 } from '@gastapp/types';
@@ -165,8 +165,15 @@ export function ExpensesPage() {
                       {initial}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-pulse-text">
+                      <p className="flex items-center gap-1.5 truncate text-sm font-medium text-pulse-text">
                         {e.description ?? 'Expense'}
+                        {e.subscriptionId && (
+                          <Repeat
+                            size={11}
+                            className="shrink-0 text-pulse-faint"
+                            aria-label="Recurring"
+                          />
+                        )}
                       </p>
                       <p className="text-xs text-pulse-faint">{cat?.name ?? '—'}</p>
                     </div>

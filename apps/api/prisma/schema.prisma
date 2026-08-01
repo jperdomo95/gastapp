@@ -20,6 +20,7 @@ model User {
   expenses      Expense[]
   categories    Category[]
   refreshTokens RefreshToken[]
+  subscriptions Subscription[]
 }
 
 model OAuthAccount {
@@ -46,14 +47,15 @@ model RefreshToken {
 }
 
 model Category {
-  id       String    @id @default(cuid())
-  name     String
-  icon     String?
-  color    String?
-  isSystem Boolean   @default(false)
-  userId   String?
-  user     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expenses Expense[]
+  id            String         @id @default(cuid())
+  name          String
+  icon          String?
+  color         String?
+  isSystem      Boolean        @default(false)
+  userId        String?
+  user          User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses      Expense[]
+  subscriptions Subscription[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -72,6 +74,72 @@ model Expense {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Set when this row was materialised by a subscription. SetNull (never
+  // Cascade): deleting a subscription must leave its past charges in the
+  // ledger so historical months keep their totals.
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@unique([subscriptionId, date])
   @@index([userId, date])
   @@index([categoryId])
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model Subscription {
+  id          String              @id @default(cuid())
+  name        String
+  amount      Decimal             @db.Decimal(12, 2)
+  currency    String              @default("USD")
+  description String?
+  frequency   RecurrenceFrequency
+  startDate   DateTime            @db.Date
+  endDate     DateTime?           @db.Date
+
+  /// Cursor: the next period still to be materialised. Null once finished.
+  nextOccurrenceDate DateTime?          @db.Date
+  lastGeneratedDate  DateTime?          @db.Date
+  status             SubscriptionStatus @default(ACTIVE)
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  expenses      Expense[]
+  amountChanges SubscriptionAmountChange[]
+
+  @@index([userId, status])
+  @@index([status, nextOccurrenceDate])
+  @@index([categoryId])
+}
+
+/// A scheduled price change. Append-only: the generator charges the latest
+/// change effective on or before each occurrence, so periods generated before
+/// the change keep the old price and later ones pick up the new one.
+model SubscriptionAmountChange {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  amount         Decimal      @db.Decimal(12, 2)
+  effectiveFrom  DateTime     @db.Date
+  createdAt      DateTime     @default(now())
+
+  @@unique([subscriptionId, effectiveFrom])
+  @@index([subscriptionId, effectiveFrom])
 }

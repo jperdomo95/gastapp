@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, ListChecks, PieChart, Tags, LogOut, Plus, Moon, Sun, Settings,
+  LayoutDashboard, ListChecks, PieChart, Repeat, Tags, LogOut, Plus, Moon, Sun, Settings,
 } from 'lucide-react';
 import { useState } from 'react';
 import type React from 'react';
@@ -11,18 +11,30 @@ import { Button } from '@/components/ui/button';
 import { AddExpenseSheet } from './AddExpenseSheet';
 
 const navItems = [
-  { to: '/',           label: 'Dashboard',  icon: LayoutDashboard },
-  { to: '/expenses',   label: 'Expenses',   icon: ListChecks },
-  { to: '/categories', label: 'Categories', icon: Tags },
-  { to: '/reports',    label: 'Reports',    icon: PieChart },
+  { to: '/',              label: 'Dashboard',     icon: LayoutDashboard },
+  { to: '/expenses',      label: 'Expenses',      icon: ListChecks },
+  { to: '/subscriptions', label: 'Subscriptions', icon: Repeat },
+  { to: '/categories',    label: 'Categories',    icon: Tags },
+  { to: '/reports',       label: 'Reports',       icon: PieChart },
+] as const;
+
+// The bottom bar fits exactly four tabs around the centred add button, so it
+// carries its own list rather than slicing the sidebar's. Categories is reached
+// from the mobile header instead, the same way Settings already is.
+const mobileNavItems = [
+  navItems[0], // Dashboard
+  navItems[1], // Expenses
+  navItems[2], // Subscriptions
+  navItems[4], // Reports
 ] as const;
 
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
-  '/':           { title: 'Dashboard',  subtitle: 'Your spending at a glance' },
-  '/expenses':   { title: 'Expenses',   subtitle: 'Browse and manage your ledger' },
-  '/categories': { title: 'Categories', subtitle: 'Organise your spending' },
-  '/reports':    { title: 'Reports',    subtitle: 'Analytics & trends' },
-  '/settings':   { title: 'Settings',   subtitle: 'Account preferences' },
+  '/':              { title: 'Dashboard',     subtitle: 'Your spending at a glance' },
+  '/expenses':      { title: 'Expenses',      subtitle: 'Browse and manage your ledger' },
+  '/subscriptions': { title: 'Subscriptions', subtitle: 'Recurring charges, added automatically' },
+  '/categories':    { title: 'Categories',    subtitle: 'Organise your spending' },
+  '/reports':       { title: 'Reports',       subtitle: 'Analytics & trends' },
+  '/settings':      { title: 'Settings',      subtitle: 'Account preferences' },
 };
 
 export function AppLayout() {
@@ -121,6 +133,11 @@ export function AppLayout() {
           <header className="flex h-14 shrink-0 items-center justify-between border-b border-pulse-stroke px-5 md:hidden">
             <span className="gradient-hero-text text-base font-bold tracking-tight">Pulse</span>
             <div className="flex items-center gap-1">
+              {/* Categories has no bottom-nav slot on mobile — the bar fits four
+                  tabs around the add button — so it lives up here. */}
+              <NavLink to="/categories" aria-label="Categories" className="rounded-lg p-1.5 text-pulse-faint">
+                <Tags size={16} />
+              </NavLink>
               <NavLink to="/settings" aria-label="Settings" className="rounded-lg p-1.5 text-pulse-faint">
                 <Settings size={16} />
               </NavLink>
@@ -140,7 +157,7 @@ export function AppLayout() {
           className="fixed bottom-0 inset-x-0 z-20 flex h-[62px] items-center border-t border-pulse-stroke bg-[var(--pulse-nav-bg)] backdrop-blur-xl md:hidden"
           aria-label="Main navigation"
         >
-          {navItems.slice(0, 2).map(({ to, label, icon: Icon }) => (
+          {mobileNavItems.slice(0, 2).map(({ to, label, icon: Icon }) => (
             <MobileTab key={to} to={to} label={label} Icon={Icon} end={to === '/'} />
           ))}
 
@@ -155,7 +172,7 @@ export function AppLayout() {
             </button>
           </div>
 
-          {navItems.slice(2).map(({ to, label, icon: Icon }) => (
+          {mobileNavItems.slice(2).map(({ to, label, icon: Icon }) => (
             <MobileTab key={to} to={to} label={label} Icon={Icon} />
           ))}
         </nav>
