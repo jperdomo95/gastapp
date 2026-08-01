@@ -3,7 +3,9 @@ import {
   AreaChart, Area, PieChart, Pie, Cell, XAxis, Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { Repeat } from 'lucide-react';
 import { useExpenses } from '@/hooks/use-expenses';
+import { useSubscriptions } from '@/hooks/use-subscriptions';
 import { useCategories } from '@/hooks/use-categories';
 import { useMonthlyTotals, useCategoryBreakdown } from '@/hooks/use-reports';
 import { useThemeStore } from '@/stores/theme-store';
@@ -26,10 +28,31 @@ export function DashboardPage() {
   const { data: lastData } = useMonthlyTotals(lastMonth);
   const { data: recent }   = useExpenses({ pageSize: 5 });
   const { data: categories } = useCategories();
+  const { data: subscriptions } = useSubscriptions({ status: 'ACTIVE' });
 
   const catById = useMemo(
     () => new Map((categories ?? []).map((c) => [c.id, c])),
     [categories],
+  );
+
+  // Charges still to come before the month is out — what is already committed
+  // on top of what has been spent.
+  const upcoming = useMemo(
+    () =>
+      (subscriptions ?? [])
+        .filter(
+          (s) =>
+            s.nextOccurrenceDate !== null &&
+            s.nextOccurrenceDate >= thisMonth.from &&
+            s.nextOccurrenceDate <= thisMonth.to,
+        )
+        .sort((a, b) => (a.nextOccurrenceDate! < b.nextOccurrenceDate! ? -1 : 1)),
+    [subscriptions, thisMonth],
+  );
+
+  const upcomingTotal = useMemo(
+    () => upcoming.reduce((acc, s) => acc + Number(s.amount), 0),
+    [upcoming],
   );
 
   const thisMonthKey = useMemo(() => currentMonthKey(), []);
@@ -220,6 +243,41 @@ export function DashboardPage() {
               />
             </AreaChart>
           </ResponsiveContainer>
+        </Card>
+      )}
+
+      {/* Upcoming subscription charges */}
+      {upcoming.length > 0 && (
+        <Card className="overflow-hidden">
+          <div className="flex items-center justify-between border-b border-pulse-stroke px-5 py-3">
+            <p className="text-sm font-semibold text-pulse-text">Upcoming this month</p>
+            <span className="text-xs text-pulse-faint">${usd(upcomingTotal)}</span>
+          </div>
+          <div className="divide-y divide-pulse-stroke">
+            {upcoming.map((s) => {
+              const cat = catById.get(s.categoryId);
+              const hue = cat ? catHue(cat.name, cat.color) : 230;
+              return (
+                <div key={s.id} className="flex items-center gap-3 px-5 py-3">
+                  <div
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                    style={{ background: catSoft(hue, theme), color: catTint(hue, theme) }}
+                  >
+                    <Repeat size={14} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-pulse-text">{s.name}</p>
+                    <p className="text-xs text-pulse-faint">
+                      {new Date(`${s.nextOccurrenceDate}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold text-pulse-text">
+                    −${usd(Number(s.amount))}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </Card>
       )}
 

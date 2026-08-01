@@ -56,26 +56,36 @@ export class CategoriesService {
 
   async remove(userId: string, id: string, reassignTo?: string) {
     await this.assertOwnEditable(userId, id);
-    const expenseCount = await this.prisma.expense.count({ where: { categoryId: id } });
+    // Subscriptions hold the category on `Restrict` too, so they have to be
+    // reassigned alongside expenses or the delete fails at the FK.
+    const [expenseCount, subscriptionCount] = await this.prisma.$transaction([
+      this.prisma.expense.count({ where: { categoryId: id } }),
+      this.prisma.subscription.count({ where: { categoryId: id } }),
+    ]);
 
-    if (expenseCount === 0) {
+    if (expenseCount === 0 && subscriptionCount === 0) {
       await this.prisma.category.delete({ where: { id } });
       return;
     }
 
     if (!reassignTo) {
       throw new ConflictException({
-        message: 'Category has expenses; choose a category to reassign them to',
+        message: 'Category is in use; choose a category to reassign to',
         expenseCount,
+        subscriptionCount,
       });
     }
     if (reassignTo === id) {
-      throw new ConflictException('Cannot reassign expenses to the category being deleted');
+      throw new ConflictException('Cannot reassign to the category being deleted');
     }
     await this.assertCategoryAccessible(userId, reassignTo);
 
     await this.prisma.$transaction([
       this.prisma.expense.updateMany({
+        where: { categoryId: id },
+        data: { categoryId: reassignTo },
+      }),
+      this.prisma.subscription.updateMany({
         where: { categoryId: id },
         data: { categoryId: reassignTo },
       }),
