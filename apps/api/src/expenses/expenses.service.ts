@@ -8,6 +8,7 @@ import type {
 } from '@gastapp/types';
 import { parseBankCsv } from './csv-import';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { toDbDate } from '../subscriptions/recurrence';
 
 @Injectable()
 export class ExpensesService {
@@ -79,7 +80,7 @@ export class ExpensesService {
           amount: new Prisma.Decimal(r.amount),
           currency: 'USD',
           description: r.description || null,
-          date: r.date,
+          date: toDbDate(r.date),
           categoryId,
           userId,
         })),
