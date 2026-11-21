@@ -1,6 +1,6 @@
 import {
   computePayCycle, payWindow, shiftDays, windowOf,
-  type CycleExpense, type CycleIncome, type CycleSource, type CycleSubscription,
+  type CycleBucket, type CycleExpense, type CycleIncome, type CycleSource, type CycleSubscription,
 } from './pay-cycle';
 
 // Synthetic figures only.
@@ -25,6 +25,7 @@ const cycle = (o: {
   incomes?: CycleIncome[];
   expenses?: CycleExpense[];
   subscriptions?: CycleSubscription[];
+  buckets?: CycleBucket[];
 }) =>
   computePayCycle({
     sources: [SALARY], incomes: [], expenses: [], subscriptions: [], ...o,
@@ -251,6 +252,87 @@ describe('computePayCycle', () => {
       expect(result?.previous?.end).toBe('2026-10-28');
       expect(result?.previous?.cumulative.slice(0, 4)).toEqual(['1000.00', '1000.00', '1250.00', '1250.00']);
       expect(result?.previous?.cumulative).toHaveLength(30);
+    });
+  });
+
+  describe('set-asides and weekly allowance', () => {
+    const PARTNER: CycleBucket = {
+      id: 'b-partner', name: 'Partner share', kind: 'TRANSFER', amount: '1000.00', currency: 'USD',
+      matchText: 'acct 0042', categoryId: null,
+    };
+    const SAVINGS: CycleBucket = {
+      id: 'b-savings', name: 'Savings', kind: 'SAVINGS', amount: '300.00', currency: 'USD',
+      matchText: null, categoryId: 'cat-savings',
+    };
+    const transfer = (date: string, amount: string): CycleExpense => ({
+      date, amount, currency: 'USD', description: 'Transfer to ACCT 0042',
+    });
+
+    it('holds back set-asides that have not gone out yet', () => {
+      const result = cycle({ today: '2026-11-21', buckets: [PARTNER, SAVINGS] });
+      expect(result).toMatchObject({ reserved: '1300.00', left: '1700.00' });
+    });
+
+    it('counts a matching transfer as paying the set-aside, not as spending on top', () => {
+      const result = cycle({
+        today: '2026-11-21',
+        buckets: [PARTNER, SAVINGS],
+        expenses: [
+          transfer('2026-10-28', '1000.00'),
+          { date: '2026-10-29', amount: '100.00', currency: 'USD', categoryId: 'cat-savings' },
+        ],
+      });
+
+      expect(result?.buckets.map((b) => [b.name, b.paid])).toEqual([
+        ['Partner share', '1000.00'],
+        ['Savings', '100.00'],
+      ]);
+      // 3000 − 1000 paid − 100 paid − 200 savings still to go.
+      expect(result).toMatchObject({ reserved: '200.00', left: '1700.00' });
+    });
+
+    it('counts paying more than the set-aside as money gone', () => {
+      const result = cycle({
+        today: '2026-11-21', buckets: [PARTNER], expenses: [transfer('2026-10-28', '1100.00')],
+      });
+      expect(result).toMatchObject({ reserved: '0.00', left: '1900.00' });
+    });
+
+    it('leaves set-aside payments out of the recent pace', () => {
+      const result = cycle({
+        today: '2026-11-21', buckets: [PARTNER], expenses: [transfer('2026-11-20', '1000.00')],
+      });
+      expect(result?.recentPerDay).toBe('0.00');
+      expect(result?.projectedZeroDate).toBeNull();
+    });
+
+    it('spreads what day-to-day spending gets over the cycle and hands it out by the week', () => {
+      // Cycle Oct 28 → Nov 30 is 33 days; today Nov 21 is day 25, in week 4 (Nov 18–24).
+      const result = cycle({
+        today: '2026-11-21',
+        buckets: [PARTNER, SAVINGS],
+        expenses: [
+          transfer('2026-10-28', '1000.00'),
+          { date: '2026-11-03', amount: '50.00', currency: 'USD', fromSubscription: true },
+          spend('2026-11-17', '40.00'), // last week
+          spend('2026-11-18', '25.00'),
+          spend('2026-11-21', '15.50'),
+        ],
+        subscriptions: [sub({ nextOccurrenceDate: '2026-11-25', amount: '17.00' })],
+      });
+
+      // 3000 − 1300 set aside − (50 charged + 17 still due) = 1633 over 33 days.
+      expect(result?.allowance).toEqual({
+        cycleBudget: '1633.00',
+        cycleSpent: '80.50',
+        perDay: '49.48',
+        week: { number: 4, start: '2026-11-18', end: '2026-11-24', budget: '346.36', spent: '40.50' },
+      });
+    });
+
+    it('ends the last week the day before payday', () => {
+      const result = cycle({ today: '2026-11-27' });
+      expect(result?.allowance.week).toMatchObject({ number: 5, start: '2026-11-25', end: '2026-11-29' });
     });
   });
 });

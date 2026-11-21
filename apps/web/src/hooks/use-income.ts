@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type {
+  BudgetBucket, CreateBudgetBucketDto, UpdateBudgetBucketDto,
   CreateIncomeDto, CreateIncomeSourceDto, Income, IncomeSource, PayCycle,
   UpdateIncomeSourceDto,
 } from '@gastapp/types';
@@ -74,6 +75,41 @@ export function useDeleteIncome() {
   return useMutation({
     mutationFn: async (id: string) => {
       await api.delete(`/income/${id}`);
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function useBuckets() {
+  return useQuery({
+    queryKey: ['income', 'buckets'],
+    queryFn: async () => (await api.get<BudgetBucket[]>('/income/buckets')).data,
+  });
+}
+
+export function useCreateBucket() {
+  const invalidate = useIncomeInvalidation();
+  return useMutation({
+    mutationFn: async (dto: CreateBudgetBucketDto) =>
+      (await api.post<BudgetBucket>('/income/buckets', dto)).data,
+    onSuccess: invalidate,
+  });
+}
+
+export function useUpdateBucket() {
+  const invalidate = useIncomeInvalidation();
+  return useMutation({
+    mutationFn: async ({ id, dto }: { id: string; dto: UpdateBudgetBucketDto }) =>
+      (await api.patch<BudgetBucket>(`/income/buckets/${id}`, dto)).data,
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteBucket() {
+  const invalidate = useIncomeInvalidation();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/income/buckets/${id}`);
     },
     onSuccess: invalidate,
   });

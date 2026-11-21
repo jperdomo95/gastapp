@@ -61,7 +61,8 @@ export function burnRows(cycle: PayCycle): Row[] {
 export function BurnChart({ cycle }: { cycle: PayCycle }) {
   const [asTable, setAsTable] = useState(false);
   const rows = useMemo(() => burnRows(cycle), [cycle]);
-  const available = Number(cycle.income) - Number(cycle.committed);
+  // What the paycheck can cover: income less charges still due and set-asides not yet paid.
+  const available = Number(cycle.income) - Number(cycle.committed) - Number(cycle.reserved);
   const hasPrevious = rows.some((r) => r.previous !== undefined);
 
   return (
@@ -214,18 +215,22 @@ export function forecastLines(cycle: PayCycle): { tone: 'good' | 'warning'; text
     const spare = left - recent * Math.max(0, cycle.daysLeft - 1);
     lines.push({
       tone: 'good',
-      text: `At ${pace}, this paycheck lasts until payday with about $${usd(spare, 0)} to spare.`,
+      text: spare >= 1
+        ? `At ${pace}, this paycheck lasts until payday with about $${usd(spare, 0)} to spare.`
+        : `At ${pace}, this paycheck just about lasts until payday.`,
     });
   }
 
   const income = Number(cycle.income);
   const totalDays = cycleLength(cycle);
-  const used = income > 0 ? (Number(cycle.spent) + Number(cycle.committed)) / income : 0;
+  const used = income > 0
+    ? (Number(cycle.spent) + Number(cycle.committed) + Number(cycle.reserved)) / income
+    : 0;
   const elapsed = cycle.daysElapsed / totalDays;
   if (used - elapsed > 0.1) {
     lines.push({
       tone: 'warning',
-      text: `${Math.round(used * 100)}% of this paycheck is spent or committed, ${Math.round(elapsed * 100)}% of the way through the cycle.`,
+      text: `${Math.round(used * 100)}% of this paycheck is spent, due or set aside, ${Math.round(elapsed * 100)}% of the way through the cycle.`,
     });
   }
   return lines;

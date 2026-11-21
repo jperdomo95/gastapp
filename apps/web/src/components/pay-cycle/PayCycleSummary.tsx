@@ -60,6 +60,7 @@ export function PayCycleSummary() {
           <p className="text-xs text-pulse-faint">left · {c}{usd(Number(cycle.perDay), 0)}/day</p>
         </div>
       </div>
+      <WeeklyAllowance cycle={cycle} />
       <Forecast cycle={cycle} />
       <BurnChart cycle={cycle} />
       <div className="text-right">
@@ -68,5 +69,40 @@ export function PayCycleSummary() {
         </Link>
       </div>
     </Card>
+  );
+}
+
+/** This week's share of day-to-day money, and how much of it is gone. */
+export function WeeklyAllowance({ cycle }: { cycle: PayCycle }) {
+  const { week } = cycle.allowance;
+  const budget = Number(week.budget);
+  const spent = Number(week.spent);
+  const over = spent > budget;
+  const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : 100;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className="text-pulse-dim">
+          Week {week.number} · {formatDay(week.start)}–{formatDay(week.end)}
+        </span>
+        <span className="text-pulse-text">
+          <span className={`font-semibold ${over ? 'text-red-400' : ''}`}>${usd(spent, 0)}</span>
+          <span className="text-pulse-faint"> of ${usd(budget, 0)}</span>
+        </span>
+      </div>
+      <div
+        className="h-1.5 overflow-hidden rounded-full bg-pulse-track"
+        role="img"
+        aria-label={`Spent ${Math.round((spent / Math.max(budget, 1)) * 100)}% of this week's allowance`}
+      >
+        <div className={`h-full ${over ? 'bg-red-400' : 'bg-pulse-v2'}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-[11px] text-pulse-faint">
+        {over
+          ? `$${usd(spent - budget, 0)} over this week's allowance — it comes out of the weeks left.`
+          : `$${usd(budget - spent, 0)} left this week for day-to-day spending.`}
+        {' '}Excludes subscriptions and set-asides.
+      </p>
+    </div>
   );
 }
