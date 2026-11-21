@@ -27,11 +27,14 @@ function addDays(date: string, days: number): string {
 export const formatDay = (date: string) =>
   new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
+/** Days from payday to the day before the latest next payday. Both counts include today. */
+export const cycleLength = (cycle: PayCycle) => cycle.daysElapsed + cycle.daysLeft - 1;
+
 const whole = (n: number) => `$${usd(n, 0)}`;
 
 /** Day-by-day rows from the first day of the cycle to the day before the latest payday. */
 export function burnRows(cycle: PayCycle): Row[] {
-  const totalDays = cycle.daysElapsed + cycle.daysLeft;
+  const totalDays = cycleLength(cycle);
   const recent = Number(cycle.recentPerDay);
   const rows: Row[] = [];
   let running = 0;
@@ -216,7 +219,7 @@ export function forecastLines(cycle: PayCycle): { tone: 'good' | 'warning'; text
   }
 
   const income = Number(cycle.income);
-  const totalDays = cycle.daysElapsed + cycle.daysLeft;
+  const totalDays = cycleLength(cycle);
   const used = income > 0 ? (Number(cycle.spent) + Number(cycle.committed)) / income : 0;
   const elapsed = cycle.daysElapsed / totalDays;
   if (used - elapsed > 0.1) {

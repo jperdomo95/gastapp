@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, Wallet } from 'lucide-react';
 import { usePayCycle } from '@/hooks/use-income';
 import { Card } from '@/components/ui/card';
 import { usd } from '@/lib/pulse';
-import { BurnChart, forecastLines, formatDay } from './BurnChart';
+import { BurnChart, cycleLength, forecastLines, formatDay } from './BurnChart';
 import type { PayCycle } from '@gastapp/types';
 
 /** The forecast sentences, each with an icon so the tone never rests on color alone. */
@@ -50,7 +50,7 @@ export function PayCycleSummary() {
         <div>
           <p className="text-sm font-semibold text-pulse-text">This paycheck</p>
           <p className="text-xs text-pulse-faint">
-            Since {formatDay(cycle.start)} · day {cycle.daysElapsed} of {cycle.daysElapsed + cycle.daysLeft}
+            Since {formatDay(cycle.start)} · day {cycle.daysElapsed} of {cycleLength(cycle)}
           </p>
         </div>
         <div className="text-right">
