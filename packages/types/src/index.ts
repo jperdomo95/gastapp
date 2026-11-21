@@ -5,3 +5,4 @@ export * from './expense.js';
 export * from './subscription.js';
 export * from './report.js';
 export * from './income.js';
+export * from './goal.js';

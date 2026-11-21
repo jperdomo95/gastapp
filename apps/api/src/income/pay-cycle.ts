@@ -182,7 +182,7 @@ const normText = (s: string) =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
 
 /** Does this expense pay into the bucket — by its category or the text in its description? */
-function paysBucket(b: CycleBucket, e: CycleExpense): boolean {
+export function paysBucket(b: CycleBucket, e: CycleExpense): boolean {
   if (b.categoryId && e.categoryId === b.categoryId) return true;
   return Boolean(b.matchText && e.description && normText(e.description).includes(normText(b.matchText)));
 }

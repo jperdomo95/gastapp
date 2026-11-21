@@ -5,6 +5,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ExpensesPage } from './pages/ExpensesPage';
 import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { IncomePage } from './pages/IncomePage';
+import { SavingsPage } from './pages/SavingsPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -27,6 +28,7 @@ export function App() {
         <Route path="/expenses" element={<ExpensesPage />} />
         <Route path="/subscriptions" element={<SubscriptionsPage />} />
         <Route path="/income" element={<IncomePage />} />
+        <Route path="/savings" element={<SavingsPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
