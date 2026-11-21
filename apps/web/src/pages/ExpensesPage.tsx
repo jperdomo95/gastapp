@@ -322,6 +322,7 @@ function ImportForm({ onDone }: { onDone: () => void }) {
   const importCsv = useImportExpenses();
   const [categoryId, setCategoryId] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [includeIncome, setIncludeIncome] = useState(false);
   const [result, setResult] = useState<ImportExpensesResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -330,7 +331,7 @@ function ImportForm({ onDone }: { onDone: () => void }) {
     setError(null);
     setResult(null);
     try {
-      const res = await importCsv.mutateAsync({ file, categoryId });
+      const res = await importCsv.mutateAsync({ file, categoryId, includeIncome });
       setResult(res);
     } catch {
       setError('Could not import this file. Make sure it is a bank CSV with a date and amount column.');
@@ -344,8 +345,14 @@ function ImportForm({ onDone }: { onDone: () => void }) {
           <p className="font-semibold text-pulse-text">
             Imported {result.imported} expense{result.imported === 1 ? '' : 's'}.
           </p>
+          {result.incomeImported > 0 && (
+            <p className="text-pulse-dim">
+              Recorded {result.incomeImported} deposit{result.incomeImported === 1 ? '' : 's'} as income.
+            </p>
+          )}
           <p className="text-pulse-dim">
-            {result.skipped} row{result.skipped === 1 ? '' : 's'} skipped (credits).
+            {result.skipped} row{result.skipped === 1 ? '' : 's'} skipped
+            {includeIncome ? '.' : ' (credits).'}
           </p>
           {result.errors.length > 0 && (
             <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-amber-400">
@@ -366,7 +373,7 @@ function ImportForm({ onDone }: { onDone: () => void }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-pulse-dim">
-        Upload a CSV exported from your bank. Debit rows are imported; credits are skipped.
+        Upload a CSV exported from your bank. Debit rows become expenses.
       </p>
       <div className="space-y-1.5">
         <Label>Category for all imported rows</Label>
@@ -383,6 +390,18 @@ function ImportForm({ onDone }: { onDone: () => void }) {
         <Label htmlFor="csv">CSV file</Label>
         <Input id="csv" type="file" accept=".csv,text/csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
       </div>
+      <label className="flex items-start gap-2 text-xs text-pulse-dim">
+        <input
+          type="checkbox"
+          className="mt-0.5 accent-pulse-v2"
+          checked={includeIncome}
+          onChange={(e) => setIncludeIncome(e.target.checked)}
+        />
+        <span>
+          Also record deposits (credit rows) as income. Deposits that match one of your income
+          sources are linked to it, so your pay cycle starts on the real payday.
+        </span>
+      </label>
       {error && <p className="text-xs text-red-400">{error}</p>}
       <div className="flex justify-end gap-2 pt-2">
         <DialogClose asChild>

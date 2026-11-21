@@ -9,6 +9,7 @@ import type {
 import { parseBankCsv } from './csv-import';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { toDbDate } from '../subscriptions/recurrence';
+import { matchIncomeSource } from '../income/match-source';
 
 @Injectable()
 export class ExpensesService {
@@ -65,11 +66,13 @@ export class ExpensesService {
     userId: string,
     categoryId: string,
     file: Buffer,
+    options: { includeIncome?: boolean } = {},
   ): Promise<ImportExpensesResult> {
     await this.assertCategoryAccessible(userId, categoryId);
 
-    const { rows, skipped, errors } = parseBankCsv(file.toString('utf8'));
-    if (rows.length === 0 && errors.length > 0) {
+    const { rows, credits, skipped, errors } = parseBankCsv(file.toString('utf8'));
+    const deposits = options.includeIncome ? credits : [];
+    if (rows.length === 0 && deposits.length === 0 && errors.length > 0) {
       // Nothing importable and the file looked malformed — surface why.
       throw new BadRequestException({ message: 'Could not import CSV', errors });
     }
@@ -87,7 +90,32 @@ export class ExpensesService {
       });
     }
 
-    return { imported: rows.length, skipped, errors };
+    if (deposits.length > 0) {
+      // Bank exports carry no currency column; the importer is USD-only, like expenses above.
+      const sources = await this.prisma.incomeSource.findMany({
+        where: { userId },
+        select: { id: true, amount: true, currency: true, matchText: true, active: true },
+      });
+      const matchable = sources.map((s) => ({ ...s, amount: s.amount.toFixed(2) }));
+      await this.prisma.income.createMany({
+        data: deposits.map((d) => ({
+          amount: new Prisma.Decimal(d.amount),
+          currency: 'USD',
+          description: d.description || null,
+          date: toDbDate(d.date),
+          sourceId: matchIncomeSource(matchable, { ...d, currency: 'USD' }),
+          userId,
+        })),
+      });
+    }
+
+    return {
+      imported: rows.length,
+      incomeImported: deposits.length,
+      // Credits recorded as income were not skipped.
+      skipped: skipped - deposits.length,
+      errors,
+    };
   }
 
   async update(userId: string, id: string, dto: UpdateExpenseDto) {

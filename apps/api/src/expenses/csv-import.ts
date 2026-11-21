@@ -5,8 +5,10 @@ import { parse } from 'csv-parse/sync';
  *
  * Uses `csv-parse` to turn the file into header-keyed records, then auto-detects
  * the delimiter, the date / description / amount columns, and the date ordering.
- * It yields one parsed entry per *debit* (money-out) row — credits, refunds and
- * income are skipped, because every imported row becomes an expense.
+ * It yields one parsed entry per *debit* (money-out) row as `rows`, and every
+ * *credit* (money-in) row separately as `credits` — the caller decides whether
+ * those become income. Credits still count towards `skipped`, since they are
+ * not expenses.
  *
  * Validated against a Banesco "Cuenta de ahorros" export:
  *   CANAL;FECHA;DESCRIPCIÓN;REFERENCIA;CHEQUE;MONTO;SALDO
@@ -32,6 +34,8 @@ export interface ParseError {
 
 export interface ParseResult {
   rows: ParsedExpenseRow[];
+  /** Money-in rows (deposits, transfers in, refunds), amounts positive. */
+  credits: ParsedExpenseRow[];
   /** Rows intentionally skipped (e.g. credits, blank lines). */
   skipped: number;
   errors: ParseError[];
@@ -183,6 +187,7 @@ export function parseBankCsv(text: string): ParseResult {
   } catch (err) {
     return {
       rows: [],
+      credits: [],
       skipped: 0,
       errors: [{ line: 0, reason: `Could not parse CSV: ${(err as Error).message}` }],
     };
@@ -190,13 +195,16 @@ export function parseBankCsv(text: string): ParseResult {
 
   const [first] = records;
   if (!first) {
-    return { rows: [], skipped: 0, errors: [{ line: 0, reason: 'File has no data rows' }] };
+    return {
+      rows: [], credits: [], skipped: 0, errors: [{ line: 0, reason: 'File has no data rows' }],
+    };
   }
 
   const cols = mapColumns(Object.keys(first));
   if (!cols) {
     return {
       rows: [],
+      credits: [],
       skipped: 0,
       errors: [
         {
@@ -211,6 +219,7 @@ export function parseBankCsv(text: string): ParseResult {
   const dayFirst = detectDayFirst(records.map((r) => r[cols.date] ?? ''));
 
   const rows: ParsedExpenseRow[] = [];
+  const credits: ParsedExpenseRow[] = [];
   const errors: ParseError[] = [];
   let skipped = 0;
 
@@ -237,6 +246,10 @@ export function parseBankCsv(text: string): ParseResult {
         outflow = Math.abs(v);
       } else {
         skipped++; // credit/inflow row, or no money movement — not an expense
+        const inflow = parseAmount(cell(cols.credit));
+        if (inflow !== null && Math.abs(inflow) > 0) {
+          credits.push({ line, date, description: cell(cols.description), amount: Math.abs(inflow).toFixed(2) });
+        }
         return;
       }
     } else {
@@ -250,6 +263,7 @@ export function parseBankCsv(text: string): ParseResult {
         outflow = Math.abs(v);
       } else {
         skipped++; // positive = credit/inflow (e.g. interest)
+        if (v > 0) credits.push({ line, date, description: cell(cols.description), amount: v.toFixed(2) });
         return;
       }
     }
@@ -267,5 +281,5 @@ export function parseBankCsv(text: string): ParseResult {
     });
   });
 
-  return { rows, skipped, errors };
+  return { rows, credits, skipped, errors };
 }

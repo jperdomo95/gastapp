@@ -21,16 +21,20 @@ export function useExpenses(query: Partial<ListExpensesQuery> = {}) {
 export function useImportExpenses() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ file, categoryId }: { file: File; categoryId: string }) => {
+    mutationFn: async ({
+      file, categoryId, includeIncome = false,
+    }: { file: File; categoryId: string; includeIncome?: boolean }) => {
       const form = new FormData();
       form.append('file', file);
       form.append('categoryId', categoryId);
+      form.append('includeIncome', String(includeIncome));
       const { data } = await api.post<ImportExpensesResult>('/expenses/import', form);
       return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
+      qc.invalidateQueries({ queryKey: ['income'] });
     },
   });
 }

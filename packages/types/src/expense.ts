@@ -41,11 +41,15 @@ export type ListExpensesQuery = z.infer<typeof listExpensesQuerySchema>;
 
 export const importExpensesBodySchema = z.object({
   categoryId: z.string().min(1),
+  /** Also record credit rows (deposits, transfers in) as income. Multipart, so a string. */
+  includeIncome: z.enum(['true', 'false']).optional(),
 });
 export type ImportExpensesBody = z.infer<typeof importExpensesBodySchema>;
 
 export const importExpensesResultSchema = z.object({
   imported: z.number().int(),
+  /** Credit rows recorded as income (only when `includeIncome` was set). */
+  incomeImported: z.number().int().default(0),
   skipped: z.number().int(),
   errors: z.array(z.object({ line: z.number().int(), reason: z.string() })),
 });

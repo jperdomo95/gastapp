@@ -53,13 +53,16 @@ export class ExpensesController {
     @CurrentUser() user: AuthUser,
     @UploadedFile() file: UploadedCsv | undefined,
     @Body('categoryId') categoryId?: string,
+    @Body('includeIncome') includeIncome?: string,
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
     if (!categoryId) throw new BadRequestException('categoryId is required');
     const isCsv =
       CSV_MIME_TYPES.includes(file.mimetype) || file.originalname.toLowerCase().endsWith('.csv');
     if (!isCsv) throw new BadRequestException('File must be a CSV');
-    return this.expenses.importFromCsv(user.id, categoryId, file.buffer);
+    return this.expenses.importFromCsv(user.id, categoryId, file.buffer, {
+      includeIncome: includeIncome === 'true',
+    });
   }
 
   @Patch(':id')
