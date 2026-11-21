@@ -212,7 +212,8 @@ function CycleCard({ cycle }: { cycle: PayCycle }) {
   const spent = Number(cycle.spent);
   const committed = Number(cycle.committed);
   const left = Number(cycle.left);
-  const totalDays = cycle.daysElapsed + cycle.daysLeft;
+  // Both counts include today.
+  const totalDays = cycle.daysElapsed + cycle.daysLeft - 1;
   const timePct = Math.min(100, (cycle.daysElapsed / totalDays) * 100);
   const spentPct = income > 0 ? Math.min(100, (spent / income) * 100) : 100;
   const committedPct = income > 0 ? Math.min(100 - spentPct, (committed / income) * 100) : 0;
