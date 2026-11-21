@@ -108,11 +108,16 @@ export function daysBetween(from: string, to: string): number {
   return (Date.UTC(b.y, b.m - 1, b.d) - Date.UTC(a.y, a.m - 1, a.d)) / MS_PER_DAY;
 }
 
+/** The calendar day `days` after `date` (negative = before). */
+export function addDays(date: string, days: number): string {
+  const { y, m, d } = parse(date);
+  const t = new Date(Date.UTC(y, m - 1, d + days));
+  return format(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+}
+
 /** The calendar day after `date`. */
 export function dayAfter(date: string): string {
-  const { y, m, d } = parse(date);
-  const t = new Date(Date.UTC(y, m - 1, d + 1));
-  return format(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+  return addDays(date, 1);
 }
 
 /** The later of two calendar days. `YYYY-MM-DD` sorts correctly as a string. */

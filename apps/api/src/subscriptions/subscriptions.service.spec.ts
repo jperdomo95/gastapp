@@ -23,7 +23,10 @@ function makePrismaMock() {
       update: jest.fn().mockResolvedValue({}),
       delete: jest.fn(),
     },
-    expense: { create: jest.fn().mockResolvedValue({}) },
+    expense: {
+      create: jest.fn().mockResolvedValue({}),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     subscriptionAmountChange: {
       create: jest.fn().mockResolvedValue({}),
       upsert: jest.fn().mockResolvedValue({}),
@@ -632,6 +635,63 @@ describe('SubscriptionsService', () => {
       });
       const [{ where }] = prisma.subscription.findMany.mock.calls[1] as [{ where: object }];
       expect(where).toEqual({ userId: USER, status: 'ACTIVE' });
+    });
+  });
+
+  describe('recurring candidates', () => {
+    const bankCharge = (iso: string, amount: string, description: string) => ({
+      date: day(iso),
+      amount: new Prisma.Decimal(amount),
+      currency: 'USD',
+      description,
+      categoryId: SYSTEM_CATEGORY.id,
+    });
+
+    it('detects a repeating charge from imported expenses and says it is not tracked yet', async () => {
+      prisma.expense.findMany.mockResolvedValue(
+        ['2026-03-11', '2026-04-11', '2026-05-11', '2026-06-11', '2026-07-11'].map((d) =>
+          bankCharge(d, '9.50', 'POS MUSICBOX 4021 US'),
+        ),
+      );
+
+      const result = await service.findRecurringCandidates(USER);
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          name: 'Musicbox',
+          amount: '9.50',
+          frequency: 'MONTHLY',
+          status: 'ACTIVE',
+          nextExpectedDate: '2026-08-11',
+          trackedSubscriptionId: null,
+        }),
+      ]);
+    });
+
+    it('only looks at the user\'s own expenses that no subscription generated', async () => {
+      await service.findRecurringCandidates(USER);
+
+      const [{ where }] = prisma.expense.findMany.mock.calls[0] as [
+        { where: { userId: string; subscriptionId: null; date: { gte: Date } } },
+      ];
+      expect(where.userId).toBe(USER);
+      expect(where.subscriptionId).toBeNull();
+      expect(where.date.gte.getTime()).toBeLessThan(day('2024-07-26').getTime());
+    });
+
+    it('links a candidate to the subscription already tracking it', async () => {
+      prisma.expense.findMany.mockResolvedValue(
+        ['2026-03-11', '2026-04-11', '2026-05-11', '2026-06-11'].map((d) =>
+          bankCharge(d, '15.99', 'NETFLIX.COM 866 579 US'),
+        ),
+      );
+      prisma.subscription.findMany.mockResolvedValue([
+        { id: 'sub-9', name: 'Netflix', amount: new Prisma.Decimal('15.99'), status: 'ACTIVE' },
+      ]);
+
+      const [candidate] = await service.findRecurringCandidates(USER);
+
+      expect(candidate?.trackedSubscriptionId).toBe('sub-9');
     });
   });
 });
