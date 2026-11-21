@@ -188,4 +188,69 @@ describe('computePayCycle', () => {
     const result = cycle({ today: '2026-11-21', expenses: [spend('2026-11-01', '3100.00')] });
     expect(result).toMatchObject({ left: '-100.00', perDay: '0.00' });
   });
+
+  describe('burn', () => {
+    it('lists spending per day from the start, empty days included', () => {
+      const result = cycle({
+        today: '2026-10-31',
+        expenses: [spend('2026-10-28', '100.00'), spend('2026-10-28', '20.00'), spend('2026-10-30', '5.50')],
+      });
+
+      expect(result?.daily).toEqual([
+        { date: '2026-10-28', spent: '120.00' },
+        { date: '2026-10-29', spent: '0.00' },
+        { date: '2026-10-30', spent: '5.50' },
+        { date: '2026-10-31', spent: '0.00' },
+      ]);
+    });
+
+    it('averages the last seven days for the recent pace', () => {
+      const result = cycle({
+        today: '2026-11-21',
+        expenses: [
+          spend('2026-10-28', '2000.00'), // payday transfers, outside the week
+          spend('2026-11-15', '70.00'),
+          spend('2026-11-21', '70.00'),
+        ],
+      });
+
+      expect(result).toMatchObject({ recentPerDay: '20.00', recentDays: 7 });
+    });
+
+    it('projects the day the money runs out at the recent pace', () => {
+      // 3000 in, 2900 spent: 100 left at 50/day is gone by the end of the 23rd.
+      const expenses = [spend('2026-10-28', '2550.00')];
+      for (let d = 15; d <= 21; d++) expenses.push(spend(`2026-11-${d}`, '50.00'));
+
+      expect(cycle({ today: '2026-11-21', expenses })?.projectedZeroDate).toBe('2026-11-23');
+    });
+
+    it('has no zero day when the money lasts until payday', () => {
+      const result = cycle({ today: '2026-11-21', expenses: [spend('2026-11-21', '10.00')] });
+      expect(result?.projectedZeroDate).toBeNull();
+    });
+
+    it('says today when nothing is left', () => {
+      const result = cycle({ today: '2026-11-21', expenses: [spend('2026-11-01', '3000.00')] });
+      expect(result?.projectedZeroDate).toBe('2026-11-21');
+    });
+
+    it('gives the previous cycle as a running total, from its recorded payday', () => {
+      const result = cycle({
+        today: '2026-11-21',
+        incomes: [deposit('2026-09-29', '3000.00'), deposit('2026-10-29', '3000.00')],
+        expenses: [
+          spend('2026-09-28', '999.00'), // before the previous payday
+          spend('2026-09-29', '1000.00'),
+          spend('2026-10-01', '250.00'),
+          spend('2026-10-29', '5.00'), // this cycle
+        ],
+      });
+
+      expect(result?.previous?.start).toBe('2026-09-29');
+      expect(result?.previous?.end).toBe('2026-10-28');
+      expect(result?.previous?.cumulative.slice(0, 4)).toEqual(['1000.00', '1000.00', '1250.00', '1250.00']);
+      expect(result?.previous?.cumulative).toHaveLength(30);
+    });
+  });
 });

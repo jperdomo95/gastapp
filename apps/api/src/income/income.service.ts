@@ -9,8 +9,8 @@ import { toDateString, toDbDate } from '../subscriptions/recurrence';
 import { todayInTimezone } from '../common/timezone';
 import { computePayCycle, shiftDays } from './pay-cycle';
 
-/** Far enough back to reach the start of any pay cycle, late payday included. */
-const CYCLE_LOOKBACK_DAYS = 70;
+/** Far enough back to reach the start of the previous pay cycle, late paydays included. */
+const CYCLE_LOOKBACK_DAYS = 80;
 
 type SourceRow = Prisma.IncomeSourceGetPayload<object>;
 type IncomeRow = Prisma.IncomeGetPayload<object>;

@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/select';
 import { usd } from '@/lib/pulse';
 import { todayDateString } from '@/lib/date-range';
+import { BurnChart } from '@/components/pay-cycle/BurnChart';
+import { Forecast } from '@/components/pay-cycle/PayCycleSummary';
 
 const formatDay = (date: string) =>
   new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -276,6 +278,9 @@ function CycleCard({ cycle }: { cycle: PayCycle }) {
           <dd className="font-semibold text-pulse-text">{money(cycle.committed, c)}</dd>
         </div>
       </dl>
+
+      <Forecast cycle={cycle} />
+      <BurnChart cycle={cycle} />
 
       <p className="text-xs text-pulse-faint">
         Since {formatDay(cycle.start)}
