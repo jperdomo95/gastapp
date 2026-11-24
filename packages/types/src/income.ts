@@ -98,5 +98,23 @@ export const payCycleSchema = z.object({
   perDay: moneyString,
   /** Expenses this cycle in other currencies, not included above. */
   otherCurrencyExpenses: z.number().int(),
+  /** Spending per day of this cycle, start…today. */
+  daily: z.array(z.object({ date: z.string().date(), spent: moneyString })),
+  /**
+   * Average day-to-day spend over the last `recentDays` full days since payday
+   * (at most a week; payday, today and subscription charges left out).
+   */
+  recentPerDay: moneyString,
+  /** 0 early in the cycle, when there are too few full days to project a pace. */
+  recentDays: z.number().int(),
+  /**
+   * The day the money runs out at `recentPerDay`; null when it lasts until the
+   * latest next payday, today when nothing is left already.
+   */
+  projectedZeroDate: z.string().date().nullable(),
+  /** The cycle before this one: running total spent by day, for comparison. */
+  previous: z
+    .object({ start: z.string().date(), end: z.string().date(), cumulative: z.array(moneyString) })
+    .nullable(),
 });
 export type PayCycle = z.infer<typeof payCycleSchema>;

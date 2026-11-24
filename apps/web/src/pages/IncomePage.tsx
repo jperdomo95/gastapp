@@ -21,9 +21,8 @@ import {
 } from '@/components/ui/select';
 import { usd } from '@/lib/pulse';
 import { todayDateString } from '@/lib/date-range';
-
-const formatDay = (date: string) =>
-  new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+import { BurnChart, cycleLength, formatDay } from '@/components/pay-cycle/BurnChart';
+import { Forecast } from '@/components/pay-cycle/PayCycleSummary';
 
 const money = (amount: string | number, currency: string) =>
   currency === 'USD' ? `$${usd(amount)}` : `${usd(amount)} ${currency}`;
@@ -215,8 +214,7 @@ function CycleCard({ cycle }: { cycle: PayCycle }) {
   const spent = Number(cycle.spent);
   const committed = Number(cycle.committed);
   const left = Number(cycle.left);
-  // Both counts include today.
-  const totalDays = cycle.daysElapsed + cycle.daysLeft - 1;
+  const totalDays = cycleLength(cycle);
   const timePct = Math.min(100, (cycle.daysElapsed / totalDays) * 100);
   const spentPct = income > 0 ? Math.min(100, (spent / income) * 100) : 100;
   const committedPct = income > 0 ? Math.min(100 - spentPct, (committed / income) * 100) : 0;
@@ -282,6 +280,9 @@ function CycleCard({ cycle }: { cycle: PayCycle }) {
           <dd className="font-semibold text-pulse-text">{money(cycle.committed, c)}</dd>
         </div>
       </dl>
+
+      <Forecast cycle={cycle} />
+      <BurnChart cycle={cycle} />
 
       <p className="text-xs text-pulse-faint">
         Since {formatDay(cycle.start)}

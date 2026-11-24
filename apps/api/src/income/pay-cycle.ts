@@ -28,6 +28,8 @@ export interface CycleExpense {
   date: string;
   amount: string;
   currency: string;
+  /** Set when a subscription materialised this charge. */
+  subscriptionId?: string | null;
 }
 
 export interface CycleSubscription {
@@ -65,6 +67,18 @@ export interface PayCycleResult {
   left: string;
   perDay: string;
   otherCurrencyExpenses: number;
+  /** Spending per day of this cycle, start…today, in the cycle currency. */
+  daily: Array<{ date: string; spent: string }>;
+  /** Average spend per day over the last week (or the cycle so far, if shorter). */
+  recentPerDay: string;
+  recentDays: number;
+  /**
+   * The day the money runs out at `recentPerDay`, or null when it lasts until
+   * the latest next payday. Today when nothing is left already.
+   */
+  projectedZeroDate: string | null;
+  /** The cycle before this one, for comparison: running total spent by day. */
+  previous: { start: string; end: string; cumulative: string[] } | null;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -125,6 +139,11 @@ const CURRENCY = 'USD';
  * extra income, not a new cycle.
  */
 export const PAYDAY_TOLERANCE_DAYS = 5;
+
+/** Full days after payday needed before a spending pace is projected forward. */
+export const MIN_PACE_DAYS = 3;
+/** The pace looks back at most this many full days. */
+const PACE_WINDOW_DAYS = 7;
 
 /** The price in force on `date`: the latest change effective by then, else the base amount. */
 function amountOn(s: CycleSubscription, date: string): number {
@@ -222,6 +241,62 @@ export function computePayCycle(input: {
   const left = income - spent - committed;
   const daysLeft = Math.max(1, daysBetween(today, next.end));
 
+  const spentOn = (from: string, to: string, include: (e: CycleExpense) => boolean = () => true) => {
+    const byDay = new Map<string, number>();
+    for (const e of input.expenses) {
+      if (e.currency !== currency || e.date < from || e.date > to || !include(e)) continue;
+      byDay.set(e.date, (byDay.get(e.date) ?? 0) + cents(e.amount));
+    }
+    const days: number[] = [];
+    for (let d = from; d <= to; d = shiftDays(d, 1)) days.push(byDay.get(d) ?? 0);
+    return days;
+  };
+
+  const daily = spentOn(start, today);
+
+  // The pace: day-to-day spending over full days since payday. The payday itself
+  // (rent, transfers out) and today (half over) would skew it, and subscription
+  // charges are already reserved in `committed`. Too few days → no projection.
+  const paceDays = spentOn(start, today, (e) => !e.subscriptionId)
+    .slice(1, -1)
+    .slice(-PACE_WINDOW_DAYS);
+  const recentDays = paceDays.length >= MIN_PACE_DAYS ? paceDays.length : 0;
+  const recentPerDay = recentDays > 0
+    ? Math.round(paceDays.reduce((a, b) => a + b, 0) / recentDays)
+    : 0;
+
+  let projectedZeroDate: string | null = null;
+  if (left <= 0) {
+    projectedZeroDate = today;
+  } else if (recentPerDay > 0) {
+    // Today's spending is already in `left`; this is the day the balance hits
+    // zero. It must last through the day before the latest payday.
+    const runsOut = shiftDays(today, Math.ceil(left / recentPerDay));
+    if (runsOut < shiftDays(next.end, -1)) projectedZeroDate = runsOut;
+  }
+
+  // The previous cycle: from its recorded (or expected) payday to the day before this one.
+  const prevWindow = payWindow(main, current.year, current.month - 1);
+  const prevDeposit = input.incomes
+    .filter((i) => i.sourceId === main.id && i.date < start)
+    .map((i) => i.date)
+    .filter((d) => windowOf(main, d).start === prevWindow.start)
+    .sort()
+    .at(-1);
+  const prevStart = prevDeposit ?? prevWindow.start;
+  const prevEnd = shiftDays(start, -1);
+  let previous: PayCycleResult['previous'] = null;
+  const prevDaily = prevStart <= prevEnd ? spentOn(prevStart, prevEnd) : [];
+  // No spending recorded then means no history (a new user), not a $0 cycle.
+  if (prevDaily.some((c) => c > 0)) {
+    let running = 0;
+    previous = {
+      start: prevStart,
+      end: prevEnd,
+      cumulative: prevDaily.map((c) => money((running += c))),
+    };
+  }
+
   return {
     currency,
     start,
@@ -237,5 +312,10 @@ export function computePayCycle(input: {
     left: money(left),
     perDay: money(left > 0 ? Math.floor(left / daysLeft) : 0),
     otherCurrencyExpenses: cycleExpenses.filter((e) => e.currency !== currency).length,
+    daily: daily.map((c, i) => ({ date: shiftDays(start, i), spent: money(c) })),
+    recentPerDay: money(recentPerDay),
+    recentDays,
+    projectedZeroDate,
+    previous,
   };
 }
