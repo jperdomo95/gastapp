@@ -132,6 +132,7 @@ describe('IncomeService', () => {
         {
           amount: new Prisma.Decimal('55.00'), currency: 'USD', frequency: 'MONTHLY',
           startDate: day('2026-01-27'), endDate: null, nextOccurrenceDate: day('2026-11-27'),
+          amountChanges: [],
         },
       ]);
 
@@ -147,6 +148,22 @@ describe('IncomeService', () => {
         committed: '55.00',
         left: '1745.00',
       });
+    });
+
+    it('reserves a scheduled price change for charges still due', async () => {
+      prisma.incomeSource.findMany.mockResolvedValue([sourceRow()]);
+      prisma.income.findMany.mockResolvedValue([
+        { date: day('2026-10-29'), amount: new Prisma.Decimal('3000.00'), currency: 'USD', sourceId: 'src-1' },
+      ]);
+      prisma.subscription.findMany.mockResolvedValue([
+        {
+          amount: new Prisma.Decimal('10.00'), currency: 'USD', frequency: 'MONTHLY',
+          startDate: day('2026-01-25'), endDate: null, nextOccurrenceDate: day('2026-11-25'),
+          amountChanges: [{ amount: new Prisma.Decimal('25.00'), effectiveFrom: day('2026-11-25') }],
+        },
+      ]);
+
+      expect(await service.payCycle(USER)).toMatchObject({ committed: '25.00', left: '2975.00' });
     });
   });
 });

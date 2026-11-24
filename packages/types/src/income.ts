@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { moneyString } from './expense.js';
+import { currencyInput, moneyString } from './expense.js';
 
 const dayOfMonth = z.number().int().min(1).max(31);
 
@@ -26,7 +26,7 @@ export type IncomeSource = z.infer<typeof incomeSourceSchema>;
 export const createIncomeSourceSchema = z.object({
   name: z.string().trim().min(1).max(80),
   amount: moneyString,
-  currency: z.string().length(3).default('USD'),
+  currency: currencyInput,
   payDayFrom: dayOfMonth,
   payDayTo: dayOfMonth,
   matchText: z.string().trim().max(80).nullish(),
@@ -51,12 +51,15 @@ export type Income = z.infer<typeof incomeSchema>;
 
 export const createIncomeSchema = z.object({
   amount: moneyString,
-  currency: z.string().length(3).default('USD'),
+  currency: currencyInput,
   description: z.string().trim().max(200).nullish(),
   date: z.string().date(),
   sourceId: z.string().nullish(),
 });
 export type CreateIncomeDto = z.infer<typeof createIncomeSchema>;
+
+/** The deposit list returns at most this many rows, newest first. */
+export const INCOME_LIST_LIMIT = 200;
 
 export const listIncomeQuerySchema = z.object({
   from: z.string().date().optional(),
@@ -66,8 +69,8 @@ export type ListIncomeQuery = z.infer<typeof listIncomeQuerySchema>;
 
 /**
  * The stretch of days one paycheck has to cover: from the last payday to the
- * end of the next pay window. Amounts are in the main source's currency;
- * spending in other currencies is counted separately, not converted.
+ * end of the next pay window. Amounts are USD (the app is USD-only for now);
+ * any legacy rows in other currencies are counted separately, not converted.
  */
 export const payCycleSchema = z.object({
   currency: z.string().length(3),

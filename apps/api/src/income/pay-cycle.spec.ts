@@ -97,6 +97,33 @@ describe('computePayCycle', () => {
     });
   });
 
+  it('does not restart the cycle on a mid-month deposit from the main source', () => {
+    // e.g. a reimbursement matched to the salary by its bank description.
+    const result = cycle({
+      today: '2026-11-21',
+      incomes: [deposit('2026-10-29', '3000.00'), deposit('2026-11-10', '120.00')],
+      expenses: [spend('2026-11-01', '200.00')],
+    });
+    expect(result).toMatchObject({
+      start: '2026-10-29', paydayConfirmed: true, income: '3120.00', spent: '200.00',
+    });
+  });
+
+  it('keeps the first payday in a window when the source pays twice in it', () => {
+    const result = cycle({
+      today: '2026-11-21',
+      incomes: [deposit('2026-10-28', '2900.00'), deposit('2026-10-30', '100.00')],
+    });
+    expect(result).toMatchObject({ start: '2026-10-28', income: '3000.00' });
+  });
+
+  it('ignores income sources in a currency other than USD', () => {
+    const big: CycleSource = { ...SALARY, id: 'src-ves', amount: '100000.00', currency: 'VES', payDayFrom: 1, payDayTo: 3 };
+    const result = cycle({ today: '2026-11-21', sources: [big, SALARY] });
+    expect(result).toMatchObject({ currency: 'USD', start: '2026-10-28' });
+    expect(cycle({ today: '2026-11-21', sources: [big] })).toBeNull();
+  });
+
   it('counts on the paycheck inside the pay window even before it shows up', () => {
     const result = cycle({ today: '2026-11-29', incomes: [deposit('2026-10-29', '3000.00')] });
 
@@ -172,6 +199,18 @@ describe('computePayCycle', () => {
 
     // 55 + weekly on the 22nd and 29th.
     expect(result?.committed).toBe('65.00');
+  });
+
+  it('reserves a still-due charge at the price in force on its date', () => {
+    const result = cycle({
+      today: '2026-11-21',
+      incomes: [deposit('2026-10-29', '3000.00')],
+      subscriptions: [sub({
+        nextOccurrenceDate: '2026-11-25',
+        amountChanges: [{ amount: '25.00', effectiveFrom: '2026-11-25' }],
+      })],
+    });
+    expect(result).toMatchObject({ committed: '25.00', left: '2975.00' });
   });
 
   it('spreads what is left over the remaining days', () => {

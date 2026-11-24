@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { INCOME_LIST_LIMIT } from '@gastapp/types';
 import type {
   CreateIncomeDto, CreateIncomeSourceDto, ListIncomeQuery, PayCycle, UpdateIncomeSourceDto,
 } from '@gastapp/types';
@@ -82,7 +83,7 @@ export class IncomeService {
         }),
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-      take: 200,
+      take: INCOME_LIST_LIMIT,
     });
     return rows.map(serializeIncome);
   }
@@ -137,6 +138,10 @@ export class IncomeService {
         select: {
           amount: true, currency: true, frequency: true,
           startDate: true, endDate: true, nextOccurrenceDate: true,
+          amountChanges: {
+            select: { amount: true, effectiveFrom: true },
+            orderBy: { effectiveFrom: 'asc' },
+          },
         },
       }),
     ]);
@@ -157,6 +162,10 @@ export class IncomeService {
         startDate: toDateString(s.startDate),
         endDate: s.endDate ? toDateString(s.endDate) : null,
         nextOccurrenceDate: s.nextOccurrenceDate ? toDateString(s.nextOccurrenceDate) : null,
+        amountChanges: s.amountChanges.map((c) => ({
+          amount: c.amount.toFixed(2),
+          effectiveFrom: toDateString(c.effectiveFrom),
+        })),
       })),
     });
   }

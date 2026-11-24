@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import {
-  createIncomeSchema, createIncomeSourceSchema,
+  CURRENCY, INCOME_LIST_LIMIT, createIncomeSchema, createIncomeSourceSchema,
   type CreateIncomeDto, type CreateIncomeSourceDto, type Income, type IncomeSource, type PayCycle,
 } from '@gastapp/types';
 import {
@@ -158,6 +158,11 @@ export function IncomePage() {
                 </li>
               ))}
             </ul>
+            {deposits?.length === INCOME_LIST_LIMIT && (
+              <p className="border-t border-pulse-stroke px-4 py-2 text-xs text-pulse-faint">
+                Showing the {INCOME_LIST_LIMIT} most recent deposits.
+              </p>
+            )}
           </Card>
         )}
       </section>
@@ -305,13 +310,13 @@ function SourceForm({ source, onDone }: { source?: IncomeSource; onDone: () => v
       ? {
           name: source.name,
           amount: source.amount,
-          currency: source.currency,
+          currency: CURRENCY,
           payDayFrom: source.payDayFrom,
           payDayTo: source.payDayTo,
           matchText: source.matchText ?? '',
           active: source.active,
         }
-      : { currency: 'USD', active: true },
+      : { currency: CURRENCY, active: true },
   });
 
   return (
@@ -329,17 +334,10 @@ function SourceForm({ source, onDone }: { source?: IncomeSource; onDone: () => v
         {errors.name && <p className="text-xs text-red-400">{errors.name.message}</p>}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="src-amount">Amount (net)</Label>
-          <Input id="src-amount" placeholder="0.00" {...register('amount')} />
-          {errors.amount && <p className="text-xs text-red-400">{errors.amount.message}</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="src-currency">Currency</Label>
-          <Input id="src-currency" maxLength={3} {...register('currency')} />
-          {errors.currency && <p className="text-xs text-red-400">Three letters, e.g. USD</p>}
-        </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="src-amount">Amount (net, USD)</Label>
+        <Input id="src-amount" placeholder="0.00" {...register('amount')} />
+        {errors.amount && <p className="text-xs text-red-400">{errors.amount.message}</p>}
       </div>
 
       <fieldset className="space-y-1.5">
@@ -402,7 +400,7 @@ function DepositForm({ sources, onDone }: { sources: IncomeSource[]; onDone: () 
     register, handleSubmit, setValue, watch, formState: { errors },
   } = useForm<CreateIncomeDto>({
     resolver: zodResolver(createIncomeSchema),
-    defaultValues: { currency: 'USD', date: today },
+    defaultValues: { currency: CURRENCY, date: today },
   });
   const sourceId = watch('sourceId');
 
@@ -434,7 +432,6 @@ function DepositForm({ sources, onDone }: { sources: IncomeSource[]; onDone: () 
           onValueChange={(v) => {
             const picked = sources.find((s) => s.id === v);
             setValue('sourceId', picked ? picked.id : null);
-            if (picked) setValue('currency', picked.currency);
           }}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>

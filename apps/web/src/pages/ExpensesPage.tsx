@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChevronLeft, ChevronRight, Pencil, Repeat, Trash2, Upload } from 'lucide-react';
 import {
-  createExpenseSchema, type CreateExpenseDto, type Expense, type ImportExpensesResult,
+  CURRENCY, createExpenseSchema, type CreateExpenseDto, type Expense, type ImportExpensesResult,
 } from '@gastapp/types';
 import {
   useCreateExpense, useUpdateExpense, useDeleteExpense, useExpenses,
@@ -248,12 +248,12 @@ function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: () => voi
     defaultValues: expense
       ? {
           amount: expense.amount,
-          currency: expense.currency,
+          currency: CURRENCY,
           description: expense.description ?? undefined,
           date: expense.date,
           categoryId: expense.categoryId,
         }
-      : { currency: 'USD', date: today },
+      : { currency: CURRENCY, date: today },
   });
   const categoryId = watch('categoryId');
   const isPending = create.isPending || update.isPending;

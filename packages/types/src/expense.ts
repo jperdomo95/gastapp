@@ -4,6 +4,14 @@ export const moneyString = z
   .string()
   .regex(/^\d+(\.\d{1,2})?$/, 'Amount must be a decimal with up to 2 fraction digits');
 
+/**
+ * GastApp is USD-only for now. Inputs accept only 'USD'; read schemas keep a
+ * plain 3-letter string so any legacy row still parses. Widen this (and drop
+ * the USD filters in the pay cycle) if multi-currency comes back.
+ */
+export const CURRENCY = 'USD' as const;
+export const currencyInput = z.literal(CURRENCY).default(CURRENCY);
+
 export const expenseSchema = z.object({
   id: z.string(),
   amount: moneyString,
@@ -20,7 +28,7 @@ export type Expense = z.infer<typeof expenseSchema>;
 
 export const createExpenseSchema = z.object({
   amount: moneyString,
-  currency: z.string().length(3).default('USD'),
+  currency: currencyInput,
   description: z.string().max(280).optional(),
   date: z.string().date(),
   categoryId: z.string(),
