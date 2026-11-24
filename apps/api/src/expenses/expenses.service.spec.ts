@@ -18,7 +18,13 @@ const CSV = [
 function makePrismaMock() {
   return {
     category: { findUnique: jest.fn() },
-    expense: { createMany: jest.fn() },
+    expense: { createMany: jest.fn().mockReturnValue('expense-write') },
+    income: {
+      createMany: jest.fn().mockReturnValue('income-write'),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    incomeSource: { findMany: jest.fn().mockResolvedValue([]) },
+    $transaction: jest.fn().mockResolvedValue([]),
   };
 }
 
@@ -58,7 +64,7 @@ describe('ExpensesService', () => {
     it('imports debits, skips credits, and reports the counts', async () => {
       const result = await service.importFromCsv(USER, CATEGORY, csv(CSV));
 
-      expect(result).toEqual({ imported: 2, skipped: 1, errors: [] });
+      expect(result).toEqual({ imported: 2, incomeImported: 0, skipped: 1, errors: [] });
       const { data } = prisma.expense.createMany.mock.calls[0][0];
       expect(data).toHaveLength(2);
       expect(data[0]).toMatchObject({
@@ -88,8 +94,96 @@ describe('ExpensesService', () => {
         csv('Date,Description,Amount\n2026-08-03,TRANSFER IN,500.00'),
       );
 
-      expect(result).toEqual({ imported: 0, skipped: 1, errors: [] });
+      expect(result).toEqual({ imported: 0, incomeImported: 0, skipped: 1, errors: [] });
       expect(prisma.expense.createMany).not.toHaveBeenCalled();
+    });
+
+    describe('with includeIncome', () => {
+      const PAYROLL = [
+        'Date,Description,Amount',
+        '2026-08-28,DEPOSITO NOMINA ACME CORP,3100.00',
+        '2026-08-28,TRANSFER TO SAVINGS,-500.00',
+        '2026-08-30,TRANSFER IN FROM ANA,40.00',
+      ].join('\n');
+
+      it('records credit rows as income and stops counting them as skipped', async () => {
+        const result = await service.importFromCsv(USER, CATEGORY, csv(PAYROLL), {
+          includeIncome: true,
+        });
+
+        expect(result).toEqual({ imported: 1, incomeImported: 2, skipped: 0, errors: [] });
+        const { data } = prisma.income.createMany.mock.calls[0][0];
+        expect(
+          data.map((r: { amount: Prisma.Decimal; date: Date; userId: string }) => [
+            r.amount.toFixed(2), r.date.toISOString().slice(0, 10), r.userId,
+          ]),
+        ).toEqual([
+          ['3100.00', '2026-08-28', USER],
+          ['40.00', '2026-08-30', USER],
+        ]);
+      });
+
+      it('links a deposit to the income source it matches', async () => {
+        prisma.incomeSource.findMany.mockResolvedValue([
+          {
+            id: 'src-salary', amount: new Prisma.Decimal('3100.00'), currency: 'USD',
+            matchText: null, active: true,
+          },
+        ]);
+
+        await service.importFromCsv(USER, CATEGORY, csv(PAYROLL), { includeIncome: true });
+
+        const { data } = prisma.income.createMany.mock.calls[0][0];
+        expect(data.map((r: { sourceId: string | null }) => r.sourceId))
+          .toEqual(['src-salary', null]);
+      });
+
+      it('writes expenses and income in one transaction', async () => {
+        await service.importFromCsv(USER, CATEGORY, csv(PAYROLL), { includeIncome: true });
+
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+        expect(prisma.$transaction).toHaveBeenCalledWith(['expense-write', 'income-write']);
+      });
+
+      it('skips deposits already recorded, so re-importing does not double income', async () => {
+        prisma.income.findMany.mockResolvedValue([
+          {
+            date: new Date('2026-08-28T00:00:00.000Z'),
+            amount: new Prisma.Decimal('3100.00'),
+            description: 'DEPOSITO NOMINA ACME CORP',
+          },
+        ]);
+
+        const result = await service.importFromCsv(USER, CATEGORY, csv(PAYROLL), {
+          includeIncome: true,
+        });
+
+        expect(result).toEqual({ imported: 1, incomeImported: 1, skipped: 1, errors: [] });
+        const { data } = prisma.income.createMany.mock.calls[0][0];
+        expect(data.map((r: { description: string }) => r.description))
+          .toEqual(['TRANSFER IN FROM ANA']);
+      });
+
+      it('keeps repeated deposits within one file beyond those already stored', async () => {
+        const twice = 'Date,Description,Amount\n2026-08-03,TRANSFER IN,50.00\n2026-08-03,TRANSFER IN,50.00';
+        prisma.income.findMany.mockResolvedValue([
+          { date: new Date('2026-08-03T00:00:00.000Z'), amount: new Prisma.Decimal('50.00'), description: 'TRANSFER IN' },
+        ]);
+
+        const result = await service.importFromCsv(USER, CATEGORY, csv(twice), { includeIncome: true });
+
+        expect(result).toMatchObject({ incomeImported: 1, skipped: 1 });
+      });
+
+      it('imports a file of deposits only', async () => {
+        const result = await service.importFromCsv(
+          USER, CATEGORY, csv('Date,Description,Amount\n2026-08-03,TRANSFER IN,500.00'),
+          { includeIncome: true },
+        );
+
+        expect(result).toMatchObject({ imported: 0, incomeImported: 1, skipped: 0 });
+        expect(prisma.expense.createMany).not.toHaveBeenCalled();
+      });
     });
 
     it('refuses to import into a category owned by someone else', async () => {

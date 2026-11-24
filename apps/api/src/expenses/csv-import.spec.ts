@@ -59,4 +59,35 @@ describe('parseBankCsv', () => {
     expect(result.rows[0]!.amount).toBe('45.20');
     expect(result.skipped).toBe(1);
   });
+
+  it('returns credit rows separately, with positive amounts', () => {
+    const { credits } = parseBankCsv(LATAM_SAMPLE);
+    expect(credits).toEqual([
+      { line: 4, date: '2026-05-31', description: 'Intereses Capitalizables', amount: '0.01' },
+    ]);
+  });
+
+  it('returns credits from a dedicated credit column', () => {
+    const csv = [
+      'Date,Description,Debit,Credit',
+      '2026-05-01,Groceries,45.20,',
+      '2026-05-02,Salary,,"2,000.00"',
+    ].join('\n');
+    expect(parseBankCsv(csv).credits).toEqual([
+      { line: 3, date: '2026-05-02', description: 'Salary', amount: '2000.00' },
+    ]);
+  });
+  it('reads the credit column when the debit column is zero-filled', () => {
+    const csv = [
+      'Date,Description,Debit,Credit',
+      '2026-05-01,Groceries,45.20,0.00',
+      '2026-05-02,Salary,0.00,2000.00',
+    ].join('\n');
+    const { rows, credits, errors } = parseBankCsv(csv);
+    expect(errors).toEqual([]);
+    expect(rows.map((r) => r.amount)).toEqual(['45.20']);
+    expect(credits).toEqual([
+      { line: 3, date: '2026-05-02', description: 'Salary', amount: '2000.00' },
+    ]);
+  });
 });

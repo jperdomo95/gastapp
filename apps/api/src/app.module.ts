@@ -8,6 +8,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { ReportsModule } from './reports/reports.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { IncomeModule } from './income/income.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -25,6 +26,7 @@ import { HealthController } from './health/health.controller';
     ExpensesModule,
     ReportsModule,
     SubscriptionsModule,
+    IncomeModule,
   ],
   controllers: [HealthController],
 })

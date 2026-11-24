@@ -21,6 +21,8 @@ model User {
   categories    Category[]
   refreshTokens RefreshToken[]
   subscriptions Subscription[]
+  incomeSources IncomeSource[]
+  incomes       Income[]
 }
 
 model OAuthAccount {
@@ -142,4 +144,45 @@ model SubscriptionAmountChange {
 
   @@unique([subscriptionId, effectiveFrom])
   @@index([subscriptionId, effectiveFrom])
+}
+
+/// Money expected every month (a salary). The pay window is the days it
+/// usually lands on; payDayTo < payDayFrom means it crosses the month end.
+model IncomeSource {
+  id         String   @id @default(cuid())
+  name       String
+  amount     Decimal  @db.Decimal(12, 2)
+  currency   String   @default("USD")
+  payDayFrom Int
+  payDayTo   Int
+  /// Text in the bank description of the deposit, to match imported credits.
+  matchText  String?
+  active     Boolean  @default(true)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  incomes Income[]
+
+  @@index([userId])
+}
+
+/// Money that actually came in — entered by hand or imported from credit rows.
+model Income {
+  id          String        @id @default(cuid())
+  amount      Decimal       @db.Decimal(12, 2)
+  currency    String        @default("USD")
+  description String?
+  date        DateTime      @db.Date
+  // SetNull: deleting a source keeps the deposits it received.
+  sourceId    String?
+  source      IncomeSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([userId, date])
+  @@index([sourceId])
 }

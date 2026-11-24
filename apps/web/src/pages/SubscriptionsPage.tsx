@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Pause, Pencil, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import {
+  CURRENCY,
   createSubscriptionSchema,
   type CreateSubscriptionDto,
   type RecurrenceFrequency,
@@ -233,7 +234,7 @@ export function SubscriptionsPage() {
               prefill={{
                 name: tracking.name,
                 amount: tracking.amount,
-                currency: tracking.currency,
+                currency: CURRENCY, // the finder only suggests USD charges
                 frequency: tracking.frequency,
                 // From the next charge: starting on the last one (already in the
                 // ledger) would generate it a second time when it is dated today.
@@ -291,7 +292,7 @@ function SubscriptionForm({
       ? {
           name: subscription.name,
           amount: subscription.amount,
-          currency: subscription.currency,
+          currency: CURRENCY,
           description: subscription.description ?? undefined,
           frequency: subscription.frequency,
           startDate: subscription.startDate,
@@ -300,7 +301,7 @@ function SubscriptionForm({
           backfillPastOccurrences: false,
         }
       : {
-          currency: 'USD',
+          currency: CURRENCY,
           frequency: 'MONTHLY',
           startDate: today,
           ...prefill,

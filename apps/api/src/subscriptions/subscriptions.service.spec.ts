@@ -303,7 +303,7 @@ describe('SubscriptionsService', () => {
     const dto = {
       name: 'Netflix',
       amount: '15.99',
-      currency: 'USD',
+      currency: 'USD' as const,
       frequency: 'MONTHLY' as const,
       startDate: '2026-05-05',
       categoryId: SYSTEM_CATEGORY.id,

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { moneyString } from './expense.js';
+import { currencyInput, moneyString } from './expense.js';
 
 export const recurrenceFrequencySchema = z.enum([
   'WEEKLY',
@@ -55,7 +55,7 @@ export type Subscription = z.infer<typeof subscriptionSchema>;
 const subscriptionFields = z.object({
   name: z.string().min(1).max(80),
   amount: moneyString,
-  currency: z.string().length(3).default('USD'),
+  currency: currencyInput,
   description: z.string().max(280).optional(),
   frequency: recurrenceFrequencySchema,
   startDate: z.string().date(),

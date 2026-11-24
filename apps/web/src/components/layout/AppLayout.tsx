@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, ListChecks, PieChart, Repeat, Tags, LogOut, Plus, Moon, Sun, Settings,
+  LayoutDashboard, ListChecks, PieChart, Repeat, Tags, LogOut, Plus, Moon, Sun, Settings, Wallet,
 } from 'lucide-react';
 import { useState } from 'react';
 import type React from 'react';
@@ -14,6 +14,7 @@ const navItems = [
   { to: '/',              label: 'Dashboard',     icon: LayoutDashboard },
   { to: '/expenses',      label: 'Expenses',      icon: ListChecks },
   { to: '/subscriptions', label: 'Subscriptions', icon: Repeat },
+  { to: '/income',        label: 'Income',        icon: Wallet },
   { to: '/categories',    label: 'Categories',    icon: Tags },
   { to: '/reports',       label: 'Reports',       icon: PieChart },
 ] as const;
@@ -25,13 +26,14 @@ const mobileNavItems = [
   navItems[0], // Dashboard
   navItems[1], // Expenses
   navItems[2], // Subscriptions
-  navItems[4], // Reports
+  navItems[5], // Reports
 ] as const;
 
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   '/':              { title: 'Dashboard',     subtitle: 'Your spending at a glance' },
   '/expenses':      { title: 'Expenses',      subtitle: 'Browse and manage your ledger' },
   '/subscriptions': { title: 'Subscriptions', subtitle: 'Recurring charges, added automatically' },
+  '/income':        { title: 'Income',        subtitle: 'Your pay cycle and what is left of it' },
   '/categories':    { title: 'Categories',    subtitle: 'Organise your spending' },
   '/reports':       { title: 'Reports',       subtitle: 'Analytics & trends' },
   '/settings':      { title: 'Settings',      subtitle: 'Account preferences' },
@@ -133,8 +135,11 @@ export function AppLayout() {
           <header className="flex h-14 shrink-0 items-center justify-between border-b border-pulse-stroke px-5 md:hidden">
             <span className="gradient-hero-text text-base font-bold tracking-tight">Pulse</span>
             <div className="flex items-center gap-1">
-              {/* Categories has no bottom-nav slot on mobile — the bar fits four
-                  tabs around the add button — so it lives up here. */}
+              {/* Income and Categories have no bottom-nav slot on mobile — the bar
+                  fits four tabs around the add button — so they live up here. */}
+              <NavLink to="/income" aria-label="Income" className="rounded-lg p-1.5 text-pulse-faint">
+                <Wallet size={16} />
+              </NavLink>
               <NavLink to="/categories" aria-label="Categories" className="rounded-lg p-1.5 text-pulse-faint">
                 <Tags size={16} />
               </NavLink>
