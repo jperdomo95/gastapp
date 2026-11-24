@@ -7,39 +7,22 @@ import { useCategoryBreakdown, useMonthlyTotals, useTopMerchants } from '@/hooks
 import { useThemeStore } from '@/stores/theme-store';
 import { Card } from '@/components/ui/card';
 import { catColor, catHue, usd } from '@/lib/pulse';
+// The reports API takes calendar days (YYYY-MM-DD), like the dashboard sends.
+import { currentMonthKey, monthRange, trailingMonthsRange } from '@/lib/date-range';
 
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-function sixMonthRange() {
-  const now = new Date();
-  return {
-    from: new Date(now.getFullYear(), now.getMonth() - 5, 1, 0, 0, 0).toISOString(),
-    to:   new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString(),
-  };
-}
-
-function monthRange(offset = 0) {
-  const now = new Date();
-  return {
-    from: new Date(now.getFullYear(), now.getMonth() - offset, 1, 0, 0, 0).toISOString(),
-    to:   new Date(now.getFullYear(), now.getMonth() - offset + 1, 0, 23, 59, 59).toISOString(),
-  };
-}
 
 export function ReportsPage() {
   const { theme } = useThemeStore();
 
-  const sixMonths  = useMemo(() => sixMonthRange(), []);
+  const sixMonths  = useMemo(() => trailingMonthsRange(5), []);
   const thisMonth  = useMemo(() => monthRange(0), []);
 
   const { data: monthly }    = useMonthlyTotals(sixMonths);
   const { data: catData }    = useCategoryBreakdown(thisMonth);
   const { data: merchants }  = useTopMerchants(thisMonth);
 
-  const thisMonthKey = useMemo(() => {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
-  }, []);
+  const thisMonthKey = useMemo(() => currentMonthKey(), []);
   const lastMonthKey = useMemo(() => {
     const n = new Date();
     const m = n.getMonth() === 0 ? 12 : n.getMonth();
