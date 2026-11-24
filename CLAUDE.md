@@ -61,6 +61,10 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ## Web
 
 - Use raw Radix primitives plus Tailwind, not shadcn (`/new-component`).
+- **The in-app guide (`/help`) is part of the feature.** A change to how a
+  feature works or looks updates its section in `apps/web/src/content/guide.tsx`
+  (page code, no markdown dependency) in the same PR. If the screen changed,
+  re-run `pnpm --filter @gastapp/web guide:screenshots` (needs the local stack).
 - Read env only through `apps/web/src/lib/env.ts`, never `import.meta.env` in
   components or hooks.
 - **Cache invalidation follows the data.** A mutation invalidates every query
