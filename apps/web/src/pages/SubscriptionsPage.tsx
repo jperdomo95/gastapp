@@ -235,7 +235,9 @@ export function SubscriptionsPage() {
                 amount: tracking.amount,
                 currency: tracking.currency,
                 frequency: tracking.frequency,
-                startDate: tracking.lastChargeDate,
+                // From the next charge: starting on the last one (already in the
+                // ledger) would generate it a second time when it is dated today.
+                startDate: tracking.nextExpectedDate,
                 categoryId: tracking.categoryId,
               }}
               onDone={() => setTracking(null)}

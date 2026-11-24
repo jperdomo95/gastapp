@@ -122,7 +122,8 @@ describe('detectRecurringCharges', () => {
     );
 
     expect(result).toHaveLength(2);
-    expect(result.map((c) => c.key).sort()).toEqual(['CLOUDBOX ONE@19.99', 'CLOUDBOX ONE@2.99']);
+    // Keyed by each plan's first charge, so neither key moves when the other plan appears.
+    expect(result.map((c) => c.key).sort()).toEqual(['CLOUDBOX ONE@2025-12-09', 'CLOUDBOX ONE@2026-07-17']);
     expect(result.every((c) => c.possibleDuplicate)).toBe(true);
   });
 
@@ -158,7 +159,7 @@ describe('detectRecurringCharges', () => {
     expect(result[0]?.trackedSubscriptionId).toBeNull();
   });
 
-  it('keeps currencies apart and lists live candidates first, biggest first', () => {
+  it('lists live candidates first, biggest first, and ignores non-USD charges', () => {
     const result = detectRecurringCharges(
       [
         ...monthly(1, 1, 11, '5.99', 'Hostrail'),
@@ -171,11 +172,62 @@ describe('detectRecurringCharges', () => {
     );
 
     expect(result.map((c) => `${c.name}:${c.status}`)).toEqual([
-      'Netcable:ACTIVE',
       'Aiwrite Assistant:ACTIVE',
       'Hostrail:ACTIVE',
       'Learnly:STOPPED',
     ]);
-    expect(result[0]).toMatchObject({ currency: 'VES', key: 'NETCABLE/VES' });
+  });
+
+  it('follows a plan through a price rise instead of calling it stopped', () => {
+    const result = detectRecurringCharges(
+      [...monthly(5, 1, 8, '9.99', 'Streamflix'), ...monthly(5, 9, 10, '13.99', 'Streamflix')],
+      [],
+      '2026-10-20',
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      status: 'ACTIVE', amount: '13.99', chargeCount: 10, nextExpectedDate: '2026-11-05',
+      key: 'STREAMFLIX@2026-01-05',
+    });
+  });
+
+  it('keeps the dismiss key stable as new charges and prices come in', () => {
+    const before = detectRecurringCharges(monthly(5, 1, 6, '2.99', 'Cloudbox One'), [], '2026-06-10');
+    const after = detectRecurringCharges(
+      [...monthly(5, 1, 6, '2.99', 'Cloudbox One'), ...monthly(5, 7, 9, '3.29', 'Cloudbox One')],
+      [],
+      '2026-09-10',
+    );
+    expect(after[0]?.key).toBe(before[0]?.key);
+  });
+
+  it('predicts the next charge from the usual billing day, not a short-month clamp', () => {
+    const result = detectRecurringCharges(
+      [
+        charge('2025-12-31', '8.00', 'Gymly'),
+        charge('2026-01-31', '8.00', 'Gymly'),
+        charge('2026-02-28', '8.00', 'Gymly'),
+      ],
+      [],
+      '2026-03-05',
+    );
+    expect(result[0]?.nextExpectedDate).toBe('2026-03-31');
+  });
+
+  it('does not treat a shared generic word as the same subscription', () => {
+    const result = detectRecurringCharges(
+      monthly(5, 1, 6, '2.99', 'Cloudbox One'),
+      [{ id: 'sub-apple', name: 'Apple One', amount: '19.95', status: 'ACTIVE' }],
+      '2026-06-10',
+    );
+    expect(result[0]?.trackedSubscriptionId).toBeNull();
+
+    const tracked = detectRecurringCharges(
+      monthly(5, 1, 6, '2.99', 'Cloudbox One'),
+      [{ id: 'sub-cb', name: 'Cloudbox', amount: '2.99', status: 'ACTIVE' }],
+      '2026-06-10',
+    );
+    expect(tracked[0]?.trackedSubscriptionId).toBe('sub-cb');
   });
 });

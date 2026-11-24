@@ -9,7 +9,7 @@
  * Dates are `YYYY-MM-DD` strings throughout (see recurrence.ts for why).
  */
 import type { RecurringCandidate, RecurringCandidateStatus } from '@gastapp/types';
-import { daysBetween, occurrenceOn, type Frequency } from './recurrence';
+import { dayAfter, daysBetween, nextOccurrenceOnOrAfter, type Frequency } from './recurrence';
 
 export interface DetectorExpense {
   date: string;
@@ -109,7 +109,15 @@ const median = (xs: number[]) => {
   return s.length % 2 ? hi : ((s[mid - 1] ?? hi) + hi) / 2;
 };
 
-/** Splits one merchant's charges into price tiers (e.g. $2.99 vs $29.99). */
+const byDate = (a: DetectorExpense, b: DetectorExpense) => a.date.localeCompare(b.date);
+
+/**
+ * Splits one merchant's charges into plans. Amounts far apart are separate
+ * price tiers (e.g. $2.99 vs $29.99) when they are billed over the same
+ * stretch of time. A tier that only starts after another ends is the same plan
+ * after a price change, so the two are joined when together they still keep a
+ * schedule. Each plan comes back sorted by date.
+ */
 function priceTiers(charges: DetectorExpense[]): DetectorExpense[][] {
   const byAmount = [...charges].sort((a, b) => Number(a.amount) - Number(b.amount));
   const tiers: DetectorExpense[][] = [];
@@ -122,7 +130,22 @@ function priceTiers(charges: DetectorExpense[]): DetectorExpense[][] {
       tiers.push([c]);
     }
   }
-  return tiers;
+
+  // Oldest plan first; merge each into the previous one when they don't overlap in time.
+  const ordered = tiers.map((t) => t.sort(byDate)).sort((a, b) => byDate(a[0]!, b[0]!));
+  const plans: DetectorExpense[][] = [];
+  for (const tier of ordered) {
+    const prev = plans.at(-1);
+    if (prev && prev.at(-1)!.date < tier[0]!.date) {
+      const joined = [...prev, ...tier];
+      if (findSchedule(joined.map((c) => c.date))) {
+        plans[plans.length - 1] = joined;
+        continue;
+      }
+    }
+    plans.push(tier);
+  }
+  return plans;
 }
 
 /** Does a gap fit one period, or two (a single missed or failed charge)? */
@@ -174,13 +197,14 @@ function confidenceOf(regularity: number, spread: number, charges: number): numb
   return Math.round((0.5 * regularity + 0.3 * steadyAmount + 0.2 * enoughHistory) * 100) / 100;
 }
 
-const significantWords = (name: string) =>
-  (normalizeMerchant(name) ?? '').split(' ').filter((w) => w.length >= 3);
+/** The brand: the first word of the merchant key ("APPLE" in "APPLE ONE"). */
+const brandOf = (merchantKey: string) => merchantKey.split(' ')[0] ?? '';
 
 /**
- * The subscription that already covers a candidate: a shared merchant word,
- * and — when the merchant has several price tiers — a similar amount, so a
- * tracked $2.99 plan does not hide an untracked $19.99 one.
+ * The subscription that already covers a candidate: the same brand (first
+ * merchant word — a shared generic word like ONE or PLUS is not enough), and,
+ * when the merchant has several price tiers, a similar amount, so a tracked
+ * $2.99 plan does not hide an untracked $19.99 one.
  */
 function trackedBy(
   merchant: string,
@@ -188,11 +212,11 @@ function trackedBy(
   hasSeveralTiers: boolean,
   subscriptions: DetectorSubscription[],
 ): string | null {
-  const merchantWords = new Set(merchant.split(' '));
+  const brand = brandOf(merchant);
   for (const s of subscriptions) {
     if (s.status === 'ARCHIVED') continue;
-    const shares = significantWords(s.name).some((w) => merchantWords.has(w));
-    if (!shares) continue;
+    const subBrand = brandOf(normalizeMerchant(s.name) ?? '');
+    if (!subBrand || subBrand !== brand) continue;
     const subAmount = Number(s.amount);
     const similar =
       Math.max(subAmount, amount) <= Math.min(subAmount, amount) * PRICE_TIER_RATIO;
@@ -202,7 +226,29 @@ function trackedBy(
 }
 
 /**
- * Finds recurring charges among `expenses`.
+ * The next charge, anchored on the plan's usual billing day rather than the
+ * last charge: a charge clamped into a short month (31st → Feb 28) must not
+ * move every later prediction to the 28th. For monthly-or-longer plans the
+ * anchor is the latest charge on the most common day of the month (ties go to
+ * the later day, since clamping only ever moves a day earlier).
+ */
+function nextCharge(sorted: DetectorExpense[], frequency: Frequency): string {
+  const last = sorted.at(-1)!;
+  let anchor = last;
+  if (frequency !== 'WEEKLY' && frequency !== 'BIWEEKLY') {
+    const counts = new Map<number, number>();
+    for (const c of sorted) {
+      const d = Number(c.date.slice(8));
+      counts.set(d, (counts.get(d) ?? 0) + 1);
+    }
+    const usualDay = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]![0];
+    anchor = [...sorted].reverse().find((c) => Number(c.date.slice(8)) === usualDay) ?? last;
+  }
+  return nextOccurrenceOnOrAfter(anchor.date, frequency, dayAfter(last.date)).date;
+}
+
+/**
+ * Finds recurring charges among `expenses`. USD only, like the rest of the app.
  *
  * @param expenses  Expenses not linked to a subscription, any order.
  * @param subscriptions  The user's subscriptions, to mark candidates already tracked.
@@ -216,11 +262,10 @@ export function detectRecurringCharges(
   const byMerchant = new Map<string, { merchant: string; charges: DetectorExpense[] }>();
   for (const e of expenses) {
     const merchant = normalizeMerchant(e.description);
-    if (!merchant || Number(e.amount) <= 0) continue;
-    const groupKey = `${merchant}|${e.currency}`;
-    const group = byMerchant.get(groupKey) ?? { merchant, charges: [] };
+    if (!merchant || Number(e.amount) <= 0 || e.currency !== 'USD') continue;
+    const group = byMerchant.get(merchant) ?? { merchant, charges: [] };
     group.charges.push(e);
-    byMerchant.set(groupKey, group);
+    byMerchant.set(merchant, group);
   }
 
   const candidates: RecurringCandidate[] = [];
@@ -229,22 +274,22 @@ export function detectRecurringCharges(
     const tiers = priceTiers(charges);
     const found: RecurringCandidate[] = [];
 
-    for (const tier of tiers) {
-      const sorted = [...tier].sort((a, b) => a.date.localeCompare(b.date));
+    for (const sorted of tiers) {
       const schedule = findSchedule(sorted.map((c) => c.date));
       if (!schedule) continue;
 
       const first = sorted[0];
       const last = sorted.at(-1);
       if (!first || !last) continue;
-      const nextExpectedDate = occurrenceOn(last.date, schedule.frequency, 1);
+      const nextExpectedDate = nextCharge(sorted, schedule.frequency);
       const status: RecurringCandidateStatus =
         daysBetween(nextExpectedDate, today) > schedule.rule.grace ? 'STOPPED' : 'ACTIVE';
 
       const currency = last.currency;
-      const key =
-        (tiers.length > 1 ? `${merchant}@${Number(last.amount).toFixed(2)}` : merchant) +
-        (currency === 'USD' ? '' : `/${currency}`);
+      // The dismiss list stores this key, so it must not change as charges come
+      // in: the plan's first charge date stays put through price changes and
+      // when another plan from the same merchant appears.
+      const key = `${merchant}@${first.date}`;
 
       found.push({
         key,
