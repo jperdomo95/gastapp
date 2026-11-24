@@ -92,8 +92,9 @@ export const createBudgetBucketSchema = z
     name: z.string().trim().min(1).max(80),
     kind: bucketKindSchema,
     amount: moneyString,
-    currency: z.string().length(3).default('USD'),
-    matchText: z.string().trim().max(80).nullish(),
+    currency: currencyInput,
+    // Matched as a substring of bank descriptions: one or two characters would match nearly everything.
+    matchText: z.string().trim().min(3, 'At least 3 characters').max(80).nullish().or(z.literal('')),
     categoryId: z.string().nullish(),
     sortOrder: z.number().int().default(0),
   });

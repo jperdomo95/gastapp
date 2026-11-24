@@ -318,7 +318,10 @@ export function computePayCycle(input: {
 
   // Allowance: what day-to-day spending gets once everything fixed is paid.
   const subscriptionCharges = sum(spentOn(start, today, (e) => Boolean(e.fromSubscription))) + committed;
-  const cycleBudget = income - sum(buckets.map((b) => cents(b.amount))) - subscriptionCharges;
+  // A set-aside takes its amount off the top, or what was actually paid into it
+  // if more — that extra is left out of flexible spending, so it must come off here.
+  const setAside = sum(buckets.map((b) => Math.max(cents(b.amount), paid.get(b.id) ?? 0)));
+  const cycleBudget = income - setAside - subscriptionCharges;
   const allowancePerDay = Math.max(0, Math.floor(cycleBudget / totalDays));
   const weekIndex = Math.floor(daysBetween(start, today) / 7);
   const weekStart = shiftDays(start, weekIndex * 7);

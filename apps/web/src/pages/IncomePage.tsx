@@ -487,7 +487,10 @@ function BucketsSection({ cycle }: { cycle: PayCycle | null }) {
   const [deleting, setDeleting] = useState<BudgetBucket | null>(null);
 
   const progress = (id: string) => cycle?.buckets.find((b) => b.id === id);
-  const total = (buckets ?? []).reduce((acc, b) => acc + Number(b.amount), 0);
+  // Matches what cycleBudget takes off: each set-aside's amount, or what was paid in if more.
+  const total = (cycle?.buckets ?? []).reduce(
+    (acc, b) => acc + Math.max(Number(b.amount), Number(b.paid)), 0,
+  );
 
   return (
     <section className="space-y-2">
@@ -563,7 +566,7 @@ function BucketsSection({ cycle }: { cycle: PayCycle | null }) {
           {editing && (
             <BucketForm
               bucket={editing === 'new' ? undefined : editing}
-              nextOrder={buckets?.length ?? 0}
+              nextOrder={Math.max(-1, ...(buckets ?? []).map((b) => b.sortOrder)) + 1}
               onDone={() => setEditing(null)}
             />
           )}
@@ -603,12 +606,12 @@ function BucketForm({
           name: bucket.name,
           kind: bucket.kind,
           amount: bucket.amount,
-          currency: bucket.currency,
+          currency: CURRENCY,
           matchText: bucket.matchText ?? '',
           categoryId: bucket.categoryId,
           sortOrder: bucket.sortOrder,
         }
-      : { kind: 'SAVINGS', currency: 'USD', sortOrder: nextOrder },
+      : { kind: 'SAVINGS', currency: CURRENCY, sortOrder: nextOrder },
   });
   const kind = watch('kind');
   const categoryId = watch('categoryId');

@@ -378,6 +378,14 @@ describe('computePayCycle', () => {
       expect(result).toMatchObject({ reserved: '0.00', left: '1900.00' });
     });
 
+    it('takes an overpaid set-aside off the allowance at what was actually paid', () => {
+      const result = cycle({
+        today: '2026-11-21', buckets: [PARTNER], expenses: [transfer('2026-10-28', '1100.00')],
+      });
+      // 3000 − 1100 paid in (not the 1000 planned); the extra 100 is not flexible spending.
+      expect(result?.allowance).toMatchObject({ cycleBudget: '1900.00', cycleSpent: '0.00' });
+    });
+
     it('leaves set-aside payments out of the recent pace', () => {
       const result = cycle({
         today: '2026-11-21', buckets: [PARTNER], expenses: [transfer('2026-11-20', '1000.00')],

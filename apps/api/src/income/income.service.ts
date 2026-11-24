@@ -199,7 +199,10 @@ export class IncomeService {
           },
         },
       }),
-      this.prisma.budgetBucket.findMany({ where: { userId }, orderBy: { sortOrder: 'asc' } }),
+      // Same order as listBuckets: an expense matching two set-asides pays the first, every time.
+      this.prisma.budgetBucket.findMany({
+        where: { userId }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      }),
     ]);
 
     return computePayCycle({
