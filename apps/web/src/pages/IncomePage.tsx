@@ -3,13 +3,16 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import {
-  CURRENCY, INCOME_LIST_LIMIT, createIncomeSchema, createIncomeSourceSchema,
+  CURRENCY, INCOME_LIST_LIMIT, createBudgetBucketSchema, createIncomeSchema, createIncomeSourceSchema,
+  type BucketKind, type BudgetBucket, type CreateBudgetBucketDto,
   type CreateIncomeDto, type CreateIncomeSourceDto, type Income, type IncomeSource, type PayCycle,
 } from '@gastapp/types';
 import {
-  useCreateIncome, useCreateIncomeSource, useDeleteIncome, useDeleteIncomeSource, useIncome,
-  useIncomeSources, usePayCycle, useUpdateIncomeSource,
+  useBuckets, useCreateBucket, useCreateIncome, useCreateIncomeSource, useDeleteBucket,
+  useDeleteIncome, useDeleteIncomeSource, useIncome, useIncomeSources, usePayCycle,
+  useUpdateBucket, useUpdateIncomeSource,
 } from '@/hooks/use-income';
+import { useCategories } from '@/hooks/use-categories';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,7 +25,7 @@ import {
 import { usd } from '@/lib/pulse';
 import { todayDateString } from '@/lib/date-range';
 import { BurnChart, cycleLength, formatDay } from '@/components/pay-cycle/BurnChart';
-import { Forecast } from '@/components/pay-cycle/PayCycleSummary';
+import { Forecast, WeeklyAllowance } from '@/components/pay-cycle/PayCycleSummary';
 
 const money = (amount: string | number, currency: string) =>
   currency === 'USD' ? `$${usd(amount)}` : `${usd(amount)} ${currency}`;
@@ -111,6 +114,8 @@ export function IncomePage() {
           </Card>
         )}
       </section>
+
+      <BucketsSection cycle={cycle ?? null} />
 
       {/* Deposits */}
       <section className="space-y-2">
@@ -212,7 +217,8 @@ function CycleCard({ cycle }: { cycle: PayCycle }) {
   const c = cycle.currency;
   const income = Number(cycle.income);
   const spent = Number(cycle.spent);
-  const committed = Number(cycle.committed);
+  // Charges still due plus set-asides not paid yet: money already spoken for.
+  const committed = Number(cycle.committed) + Number(cycle.reserved);
   const left = Number(cycle.left);
   const totalDays = cycleLength(cycle);
   const timePct = Math.min(100, (cycle.daysElapsed / totalDays) * 100);
@@ -262,11 +268,11 @@ function CycleCard({ cycle }: { cycle: PayCycle }) {
           <div className="absolute inset-y-0 w-0.5 bg-pulse-text" style={{ left: `${timePct}%` }} />
         </div>
         <p className="text-[11px] text-pulse-faint">
-          Bar: spent, then still due. Tick: how much of the cycle has gone.
+          Bar: spent, then still due or set aside. Tick: how much of the cycle has gone.
         </p>
       </div>
 
-      <dl className="grid grid-cols-3 gap-3 text-sm">
+      <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <div>
           <dt className="text-xs text-pulse-dim">Income</dt>
           <dd className="font-semibold text-pulse-text">{money(cycle.income, c)}</dd>
@@ -279,15 +285,21 @@ function CycleCard({ cycle }: { cycle: PayCycle }) {
           <dt className="text-xs text-pulse-dim">Still due</dt>
           <dd className="font-semibold text-pulse-text">{money(cycle.committed, c)}</dd>
         </div>
+        <div>
+          <dt className="text-xs text-pulse-dim">To set aside</dt>
+          <dd className="font-semibold text-pulse-text">{money(cycle.reserved, c)}</dd>
+        </div>
       </dl>
 
+      <WeeklyAllowance cycle={cycle} />
       <Forecast cycle={cycle} />
       <BurnChart cycle={cycle} />
 
       <p className="text-xs text-pulse-faint">
         Since {formatDay(cycle.start)}
         {cycle.paydayConfirmed ? ' (recorded payday)' : ' (expected payday — no deposit recorded yet)'}.
-        {' '}“Still due” is subscriptions charged before the next payday.
+        {' '}“Still due” is subscriptions charged before the next payday; “To set aside” is
+        what your set-asides have not received yet this cycle.
         {cycle.otherCurrencyExpenses > 0 &&
           ` ${cycle.otherCurrencyExpenses} expense${cycle.otherCurrencyExpenses === 1 ? '' : 's'} in other currencies not counted.`}
       </p>
@@ -450,6 +462,224 @@ function DepositForm({ sources, onDone }: { sources: IncomeSource[]; onDone: () 
           <Button type="button" variant="ghost">Cancel</Button>
         </DialogClose>
         <Button type="submit" disabled={create.isPending}>{create.isPending ? 'Saving…' : 'Save'}</Button>
+      </div>
+    </form>
+  );
+}
+
+const BUCKET_KINDS: Record<BucketKind, { label: string; hint: string }> = {
+  TRANSFER: { label: 'Fixed transfer', hint: 'Money that goes to someone else every payday' },
+  SAVINGS: { label: 'Savings', hint: 'Moved to savings first, not with what is left' },
+  RESERVE: { label: 'Reserve', hint: 'Held for surprises, the card bill, irregular costs' },
+};
+
+/** Sentinel for "no category" in the Select, which cannot hold an empty value. */
+const NO_CATEGORY = 'none';
+
+/**
+ * Pay yourself first: what comes off the top of each paycheck before
+ * day-to-day spending, with how much has gone to each this cycle.
+ */
+function BucketsSection({ cycle }: { cycle: PayCycle | null }) {
+  const { data: buckets } = useBuckets();
+  const remove = useDeleteBucket();
+  const [editing, setEditing] = useState<BudgetBucket | 'new' | null>(null);
+  const [deleting, setDeleting] = useState<BudgetBucket | null>(null);
+
+  const progress = (id: string) => cycle?.buckets.find((b) => b.id === id);
+  // Matches what cycleBudget takes off: each set-aside's amount, or what was paid in if more.
+  const total = (cycle?.buckets ?? []).reduce(
+    (acc, b) => acc + Math.max(Number(b.amount), Number(b.paid)), 0,
+  );
+
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xs uppercase tracking-widest text-pulse-dim">Off the top each payday</h2>
+          {total > 0 && cycle && (
+            <p className="text-xs text-pulse-faint">
+              {money(total, cycle.currency)} set aside · leaves {money(cycle.allowance.cycleBudget, cycle.currency)}{' '}
+              for day-to-day after subscriptions
+            </p>
+          )}
+        </div>
+        <Button size="sm" variant="ghost" aria-label="New set-aside" onClick={() => setEditing('new')}>
+          <Plus size={14} /> Add
+        </Button>
+      </div>
+
+      {(buckets?.length ?? 0) === 0 ? (
+        <Card className="py-8 text-center">
+          <p className="mx-auto max-w-md text-xs text-pulse-faint">
+            Decide what leaves each paycheck first — a fixed transfer, savings, a reserve for
+            surprises. What remains is split into a weekly allowance.
+          </p>
+        </Card>
+      ) : (
+        <Card className="overflow-hidden">
+          <ul className="divide-y divide-pulse-stroke">
+            {buckets?.map((b) => {
+              const p = progress(b.id);
+              const paid = Number(p?.paid ?? 0);
+              const amount = Number(b.amount);
+              const pct = amount > 0 ? Math.min(100, (paid / amount) * 100) : 0;
+              return (
+                <li key={b.id} className="space-y-2 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-pulse-text">{b.name}</p>
+                      <p className="text-xs text-pulse-faint">
+                        {BUCKET_KINDS[b.kind].label}
+                        {b.matchText && ` · matches “${b.matchText}”`}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-right text-sm">
+                      <span className="font-semibold text-pulse-text">{money(paid, b.currency)}</span>
+                      <span className="text-pulse-faint"> / {money(b.amount, b.currency)}</span>
+                    </span>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <Button variant="ghost" size="sm" aria-label={`Edit ${b.name}`} onClick={() => setEditing(b)}>
+                        <Pencil size={13} />
+                      </Button>
+                      <Button variant="ghost" size="sm" aria-label={`Delete ${b.name}`} onClick={() => setDeleting(b)}>
+                        <Trash2 size={13} />
+                      </Button>
+                    </div>
+                  </div>
+                  <div
+                    className="h-1 overflow-hidden rounded-full bg-pulse-track"
+                    role="img"
+                    aria-label={`${Math.round(pct)}% set aside this cycle`}
+                  >
+                    <div className="h-full bg-pulse-v1" style={{ width: `${pct}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
+
+      <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent title={editing === 'new' ? 'New set-aside' : 'Edit set-aside'}>
+          {editing && (
+            <BucketForm
+              bucket={editing === 'new' ? undefined : editing}
+              nextOrder={Math.max(-1, ...(buckets ?? []).map((b) => b.sortOrder)) + 1}
+              onDone={() => setEditing(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title="Delete set-aside?"
+        description="Transfers that paid it stay in your expenses and count as day-to-day spending again."
+        loading={remove.isPending}
+        onConfirm={async () => {
+          if (!deleting) return;
+          await remove.mutateAsync(deleting.id);
+          setDeleting(null);
+        }}
+      />
+    </section>
+  );
+}
+
+function BucketForm({
+  bucket, nextOrder, onDone,
+}: { bucket?: BudgetBucket; nextOrder: number; onDone: () => void }) {
+  const { data: categories } = useCategories();
+  const create = useCreateBucket();
+  const update = useUpdateBucket();
+  const isPending = create.isPending || update.isPending;
+
+  const {
+    register, handleSubmit, setValue, watch, formState: { errors },
+  } = useForm<CreateBudgetBucketDto>({
+    resolver: zodResolver(createBudgetBucketSchema),
+    defaultValues: bucket
+      ? {
+          name: bucket.name,
+          kind: bucket.kind,
+          amount: bucket.amount,
+          currency: CURRENCY,
+          matchText: bucket.matchText ?? '',
+          categoryId: bucket.categoryId,
+          sortOrder: bucket.sortOrder,
+        }
+      : { kind: 'SAVINGS', currency: CURRENCY, sortOrder: nextOrder },
+  });
+  const kind = watch('kind');
+  const categoryId = watch('categoryId');
+
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={handleSubmit(async (dto) => {
+        if (bucket) await update.mutateAsync({ id: bucket.id, dto });
+        else await create.mutateAsync(dto);
+        onDone();
+      })}
+    >
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="bucket-name">Name</Label>
+          <Input id="bucket-name" placeholder="Emergency fund" {...register('name')} />
+          {errors.name && <p className="text-xs text-red-400">{errors.name.message}</p>}
+        </div>
+        <div className="space-y-1.5">
+          <Label>Kind</Label>
+          <Select value={kind} onValueChange={(v) => setValue('kind', v as BucketKind)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(Object.keys(BUCKET_KINDS) as BucketKind[]).map((k) => (
+                <SelectItem key={k} value={k}>{BUCKET_KINDS[k].label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <p className="-mt-2 text-xs text-pulse-faint">{BUCKET_KINDS[kind].hint}</p>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="bucket-amount">Each paycheck</Label>
+        <Input id="bucket-amount" placeholder="0.00" {...register('amount')} />
+        {errors.amount && <p className="text-xs text-red-400">{errors.amount.message}</p>}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="bucket-match">Expense description contains (optional)</Label>
+        <Input id="bucket-match" placeholder="e.g. the last digits of the account" {...register('matchText')} />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Or expenses in category (optional)</Label>
+        <Select
+          value={categoryId ?? NO_CATEGORY}
+          onValueChange={(v) => setValue('categoryId', v === NO_CATEGORY ? null : v)}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_CATEGORY}>None</SelectItem>
+            {categories?.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-pulse-faint">
+          Matching expenses count as paying this set-aside instead of day-to-day spending.
+        </p>
+      </div>
+
+      <div className="flex justify-end gap-2 pt-2">
+        <DialogClose asChild>
+          <Button type="button" variant="ghost">Cancel</Button>
+        </DialogClose>
+        <Button type="submit" disabled={isPending}>{isPending ? 'Saving…' : 'Save'}</Button>
       </div>
     </form>
   );

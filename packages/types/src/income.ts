@@ -67,6 +67,42 @@ export const listIncomeQuerySchema = z.object({
 });
 export type ListIncomeQuery = z.infer<typeof listIncomeQuerySchema>;
 
+export const bucketKindSchema = z.enum(['TRANSFER', 'SAVINGS', 'RESERVE']);
+export type BucketKind = z.infer<typeof bucketKindSchema>;
+
+/**
+ * Money taken off the top of every paycheck before day-to-day spending: a
+ * fixed transfer, savings, a reserve for surprises. Expenses whose description
+ * contains `matchText`, or that are in `categoryId`, count as paying it.
+ */
+export const budgetBucketSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: bucketKindSchema,
+  amount: moneyString,
+  currency: z.string().length(3),
+  matchText: z.string().nullable(),
+  categoryId: z.string().nullable(),
+  sortOrder: z.number().int(),
+});
+export type BudgetBucket = z.infer<typeof budgetBucketSchema>;
+
+export const createBudgetBucketSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    kind: bucketKindSchema,
+    amount: moneyString,
+    currency: currencyInput,
+    // Matched as a substring of bank descriptions: one or two characters would match nearly everything.
+    matchText: z.string().trim().min(3, 'At least 3 characters').max(80).nullish().or(z.literal('')),
+    categoryId: z.string().nullish(),
+    sortOrder: z.number().int().default(0),
+  });
+export type CreateBudgetBucketDto = z.infer<typeof createBudgetBucketSchema>;
+
+export const updateBudgetBucketSchema = createBudgetBucketSchema.partial();
+export type UpdateBudgetBucketDto = z.infer<typeof updateBudgetBucketSchema>;
+
 /**
  * The stretch of days one paycheck has to cover: from the last payday to the
  * end of the next pay window. Amounts are USD (the app is USD-only for now);
@@ -116,5 +152,28 @@ export const payCycleSchema = z.object({
   previous: z
     .object({ start: z.string().date(), end: z.string().date(), cumulative: z.array(moneyString) })
     .nullable(),
+  /** Each set-aside with what has gone to it this cycle. */
+  buckets: z.array(z.object({
+    id: z.string(), name: z.string(), kind: bucketKindSchema, amount: moneyString, paid: moneyString,
+  })),
+  /** Set-asides not paid yet this cycle — held back from `left`. */
+  reserved: moneyString,
+  /**
+   * Day-to-day money: income minus set-asides and every subscription charge
+   * of the cycle, spread evenly over its days and handed out by the week.
+   * Spending here excludes subscription charges and set-aside payments.
+   */
+  allowance: z.object({
+    cycleBudget: moneyString,
+    cycleSpent: moneyString,
+    perDay: moneyString,
+    week: z.object({
+      number: z.number().int(),
+      start: z.string().date(),
+      end: z.string().date(),
+      budget: moneyString,
+      spent: moneyString,
+    }),
+  }),
 });
 export type PayCycle = z.infer<typeof payCycleSchema>;

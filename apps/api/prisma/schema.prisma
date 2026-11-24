@@ -23,6 +23,8 @@ model User {
   subscriptions Subscription[]
   incomeSources IncomeSource[]
   incomes       Income[]
+  budgetBuckets BudgetBucket[]
+  savingsGoals  SavingsGoal[]
 }
 
 model OAuthAccount {
@@ -58,6 +60,7 @@ model Category {
   user          User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
   expenses      Expense[]
   subscriptions Subscription[]
+  budgetBuckets BudgetBucket[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -185,4 +188,57 @@ model Income {
 
   @@index([userId, date])
   @@index([sourceId])
+}
+
+enum BucketKind {
+  TRANSFER
+  SAVINGS
+  RESERVE
+}
+
+/// Money taken off the top of each paycheck (pay yourself first). Expenses
+/// whose description contains matchText, or in categoryId, count as paying it.
+model BudgetBucket {
+  id         String     @id @default(cuid())
+  name       String
+  kind       BucketKind
+  amount     Decimal    @db.Decimal(12, 2)
+  currency   String     @default("USD")
+  matchText  String?
+  // SetNull: deleting the category keeps the bucket, matched by text only.
+  categoryId String?
+  category   Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  sortOrder  Int        @default(0)
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  savingsGoals SavingsGoal[]
+
+  @@index([userId])
+  @@index([categoryId])
+}
+
+/// A savings target, optionally in steps (e.g. an emergency fund: 1,000 →
+/// 2,300 → 7,000). Saved = baseAmount (the balance on baseDate) plus every
+/// expense paying the linked set-aside after baseDate.
+model SavingsGoal {
+  id           String        @id @default(cuid())
+  name         String
+  targetAmount Decimal       @db.Decimal(12, 2)
+  currency     String        @default("USD")
+  milestones   Decimal[]     @db.Decimal(12, 2)
+  baseAmount   Decimal       @default(0) @db.Decimal(12, 2)
+  baseDate     DateTime      @db.Date
+  // SetNull: deleting the set-aside keeps the goal at its last balance.
+  bucketId     String?
+  bucket       BudgetBucket? @relation(fields: [bucketId], references: [id], onDelete: SetNull)
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([bucketId])
 }
