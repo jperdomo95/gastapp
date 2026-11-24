@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type {
   CreateSubscriptionDto, UpdateSubscriptionDto, Subscription, ListSubscriptionsQuery,
-  CreateAmountChangeDto,
+  CreateAmountChangeDto, RecurringCandidate,
 } from '@gastapp/types';
 
 /**
@@ -26,6 +26,18 @@ export function useSubscriptions(query: Partial<ListSubscriptionsQuery> = {}) {
       const { data } = await api.get<Subscription[]>('/subscriptions', { params: query });
       return data;
     },
+  });
+}
+
+/**
+ * Repeating charges found in the ledger that may be subscriptions. Lives under
+ * the 'subscriptions' key so creating or deleting one re-checks what is tracked.
+ */
+export function useRecurringCandidates() {
+  return useQuery({
+    queryKey: ['subscriptions', 'candidates'],
+    queryFn: async () =>
+      (await api.get<RecurringCandidate[]>('/subscriptions/candidates')).data,
   });
 }
 

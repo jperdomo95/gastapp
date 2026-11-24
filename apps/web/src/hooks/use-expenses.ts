@@ -34,6 +34,7 @@ export function useImportExpenses() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       qc.invalidateQueries({ queryKey: ['goals'] });
+      qc.invalidateQueries({ queryKey: ['subscriptions', 'candidates'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
       qc.invalidateQueries({ queryKey: ['income'] });
     },
@@ -47,6 +48,7 @@ export function useCreateExpense() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       qc.invalidateQueries({ queryKey: ['goals'] });
+      qc.invalidateQueries({ queryKey: ['subscriptions', 'candidates'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
@@ -60,6 +62,7 @@ export function useUpdateExpense() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       qc.invalidateQueries({ queryKey: ['goals'] });
+      qc.invalidateQueries({ queryKey: ['subscriptions', 'candidates'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
@@ -72,6 +75,7 @@ export function useDeleteExpense() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       qc.invalidateQueries({ queryKey: ['goals'] });
+      qc.invalidateQueries({ queryKey: ['subscriptions', 'candidates'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
