@@ -9,6 +9,8 @@ const API = 'http://localhost:3001/api/';
 
 test('shows this month\'s spending and top merchants', async ({ page }) => {
   const anon = await request.newContext({ baseURL: API });
+  // The web server answers first; on a cold start the API is still compiling.
+  await expect(async () => expect((await anon.get('health')).ok()).toBeTruthy()).toPass({ timeout: 90_000 });
   const reg = await anon.post('auth/register', { data: { name: 'QA Reports', email, password } });
   expect(reg.ok()).toBeTruthy();
   const api = await request.newContext({

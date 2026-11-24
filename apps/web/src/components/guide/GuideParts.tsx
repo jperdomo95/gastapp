@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useThemeStore } from '@/stores/theme-store';
+import shotSizes from '@/content/guide-shots.json';
 
 /** Building blocks for the user guide (src/content/guide.tsx), styled like the app. */
 
@@ -51,16 +52,23 @@ export function Table({ head, rows }: { head: [string, string]; rows: Array<[Rea
 /**
  * A screenshot from public/guide, in the variant matching the current theme:
  * <name>-light.png or <name>-dark.png. Regenerate them all with
- * `pnpm --filter @gastapp/web guide:screenshots`.
+ * `pnpm --filter @gastapp/web guide:screenshots`, which also rewrites their
+ * sizes in content/guide-shots.json. Width and height reserve the image's space
+ * before it loads, so jumping to a section lands on it; a narrow capture (a
+ * dialog) shows at its own width instead of stretching.
  */
-export function Shot({ name, alt }: { name: string; alt: string }) {
+export function Shot({ name, alt }: { name: keyof typeof shotSizes; alt: string }) {
   const { theme } = useThemeStore();
+  const { width, height } = shotSizes[name];
   return (
     <img
       src={`/guide/${name}-${theme}.png`}
       alt={alt}
+      width={width}
+      height={height}
       loading="lazy"
-      className="my-4 w-full rounded-xl border border-pulse-stroke"
+      style={{ maxWidth: width }}
+      className="my-4 h-auto w-full rounded-xl border border-pulse-stroke"
     />
   );
 }

@@ -22,9 +22,9 @@ export const guideSections: GuideSection[] = [
         <P>GastApp tracks what you spend, what comes in, and how long each paycheck has to last. Four steps get you set up:</P>
         <Ol>
           <li>
-            <B>Set your timezone</B> in Settings (the gear icon). It decides what &ldquo;today&rdquo; and &ldquo;this
-            month&rdquo; mean for the dashboard, reports, the pay cycle and subscription charges. Until you set it,
-            GastApp uses UTC. If your device is in a different zone, Settings offers to switch to it.
+            <B>Check your timezone</B> in Settings (the gear icon). GastApp saves your device&rsquo;s timezone when you
+            sign up and each time you sign in. It decides what &ldquo;today&rdquo; is for the pay cycle, subscription
+            charges and savings goals. The dashboard and reports go by your device&rsquo;s own clock.
           </li>
           <li><B>Add your salary</B> under Income, so the dashboard can show how much of this paycheck is left.</li>
           <li>
@@ -60,7 +60,7 @@ export const guideSections: GuideSection[] = [
             ['Avg / day and Total entries', 'Average daily spending this month, and how many expenses you have recorded.'],
             ['By category', "This month's spending by category."],
             ['Monthly trend', 'Spending per month over recent months.'],
-            ['Upcoming this month', 'Active subscriptions still due to charge this month, with their total.'],
+            ['Upcoming this month', 'Active subscriptions whose next charge falls this month, with their total. A weekly plan shows its next charge only.'],
             ['Recent', 'Your five most recent expenses.'],
           ]}
         />
@@ -287,7 +287,11 @@ export const guideSections: GuideSection[] = [
             your recent average once you have 4 weeks of history.
           </li>
           <li><B>Update balance</B> resets what is saved, as of today, after a withdrawal, interest or a deposit made some other way.</li>
-          <li><B>Changing or removing the set-aside</B> keeps everything saved so far. The same goes when you delete the set-aside itself.</li>
+          <li>
+            <B>Linking the goal to another set-aside, or unlinking it,</B> keeps everything saved so far. The same goes
+            when you delete the set-aside itself. Changing a set-aside&rsquo;s matching text or category re-counts its
+            past payments, so a linked goal&rsquo;s progress can change.
+          </li>
         </Ul>
         <P>
           A step at or above the target is flagged in the form and isn&rsquo;t kept. To enter several steps, separate
@@ -315,9 +319,9 @@ export const guideSections: GuideSection[] = [
           ]}
         />
         <P>
-          <B>Settings</B> (the gear icon) hold your timezone, which sets &ldquo;today&rdquo; and &ldquo;this
-          month&rdquo; across the app. The sun/moon icon beside it switches between light and dark themes. This guide
-          is under the <B>?</B> icon next to them.
+          <B>Settings</B> (the gear icon) hold your timezone, which sets &ldquo;today&rdquo; for the pay cycle,
+          subscription charges and savings goals. The sun/moon icon beside it switches between light and dark themes.
+          This guide is under the <B>?</B> icon next to them.
         </P>
       </>
     ),
@@ -341,8 +345,9 @@ export const guideSections: GuideSection[] = [
             monthly plans, and 2 for quarterly or yearly ones.
           </li>
           <li>
-            <B>Set your timezone</B> early. Until you do, &ldquo;today&rdquo; is UTC, which can put subscription
-            charges and the pay cycle&rsquo;s &ldquo;today&rdquo; a day off from yours.
+            <B>Signing in updates your timezone</B> to the device&rsquo;s. If you sign in from a device set to another
+            zone, check Settings afterwards, or subscription charges and the pay cycle&rsquo;s &ldquo;today&rdquo; can be
+            a day off from yours.
           </li>
         </Ul>
       </>

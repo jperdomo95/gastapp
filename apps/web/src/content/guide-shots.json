@@ -1,0 +1,34 @@
+{
+  "csv-import": {
+    "width": 448,
+    "height": 430
+  },
+  "dashboard": {
+    "width": 968,
+    "height": 1789
+  },
+  "expenses": {
+    "width": 968,
+    "height": 2495
+  },
+  "income": {
+    "width": 968,
+    "height": 595
+  },
+  "reports": {
+    "width": 968,
+    "height": 1291
+  },
+  "savings": {
+    "width": 968,
+    "height": 396
+  },
+  "set-asides": {
+    "width": 968,
+    "height": 260
+  },
+  "subscriptions": {
+    "width": 968,
+    "height": 603
+  }
+}

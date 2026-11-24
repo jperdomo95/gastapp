@@ -1,4 +1,5 @@
 import { test, expect, request, type APIRequestContext, type Locator, type Page } from '@playwright/test';
+import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,6 +10,9 @@ import { fileURLToPath } from 'node:url';
 const API = process.env.GUIDE_API_URL ?? 'http://localhost:3001/api';
 const TZ = 'America/New_York';
 const OUT = fileURLToPath(new URL('../public/guide', import.meta.url));
+// Each screenshot's size, read by the guide's <Shot> to reserve its space.
+const SIZES = fileURLToPath(new URL('../src/content/guide-shots.json', import.meta.url));
+const sizes: Record<string, { width: number; height: number }> = {};
 const email = `guide-demo+${Date.now()}@example.com`;
 const password = 'GuideDemo123!';
 
@@ -112,7 +116,9 @@ async function seed(api: APIRequestContext) {
 // --- Capture -----------------------------------------------------------------
 
 async function shot(target: Locator, name: string, theme: string) {
-  await target.screenshot({ path: path.join(OUT, `${name}-${theme}.png`), animations: 'disabled' });
+  const png = await target.screenshot({ path: path.join(OUT, `${name}-${theme}.png`), animations: 'disabled' });
+  // PNG header: width and height are big-endian at bytes 16 and 20.
+  sizes[name] = { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
 }
 
 async function capture(page: Page, theme: 'light' | 'dark') {
@@ -167,6 +173,8 @@ async function capture(page: Page, theme: 'light' | 'dark') {
 
 test('capture guide screenshots', async ({ browser }) => {
   const anon = await request.newContext({ baseURL: `${API}/` });
+  // The web server answers first; on a cold start the API is still compiling.
+  await expect(async () => expect((await anon.get('health')).ok()).toBeTruthy()).toPass({ timeout: 90_000 });
   const reg = await anon.post('auth/register', { data: { name: 'Alex Demo', email, password, timezone: TZ } });
   expect(reg.ok(), await reg.text()).toBeTruthy();
   const { accessToken } = await reg.json();
@@ -181,4 +189,7 @@ test('capture guide screenshots', async ({ browser }) => {
     await capture(await context.newPage(), theme);
     await context.close();
   }
+
+  const sorted = Object.fromEntries(Object.entries(sizes).sort(([a], [b]) => a.localeCompare(b)));
+  writeFileSync(SIZES, `${JSON.stringify(sorted, null, 2)}\n`);
 });
