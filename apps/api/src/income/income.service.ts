@@ -131,7 +131,7 @@ export class IncomeService {
       }),
       this.prisma.expense.findMany({
         where: { userId, date: { gte: since } },
-        select: { date: true, amount: true, currency: true },
+        select: { date: true, amount: true, currency: true, subscriptionId: true },
       }),
       this.prisma.subscription.findMany({
         where: { userId, status: 'ACTIVE', nextOccurrenceDate: { not: null } },

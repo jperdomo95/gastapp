@@ -46,7 +46,7 @@ export function burnRows(cycle: PayCycle): Row[] {
       row.spent = running;
     }
     // The projection starts on today's point so the two lines join.
-    if (i >= cycle.daysElapsed - 1) row.projected = running + recent * (i - (cycle.daysElapsed - 1));
+    if (cycle.recentDays > 0 && i >= cycle.daysElapsed - 1) row.projected = running + recent * (i - (cycle.daysElapsed - 1));
     const prev = cycle.previous?.cumulative[i];
     if (prev !== undefined) row.previous = Number(prev);
     rows.push(row);
@@ -201,6 +201,11 @@ export function forecastLines(cycle: PayCycle): { tone: 'good' | 'warning'; text
 
   if (left <= 0) {
     lines.push({ tone: 'warning', text: 'This paycheck is fully spent or committed.' });
+  } else if (cycle.recentDays === 0) {
+    lines.push({
+      tone: 'good',
+      text: `Too early in this cycle to read a pace. Keep to $${usd(Number(cycle.perDay), 0)}/day to make it to payday.`,
+    });
   } else if (cycle.projectedZeroDate) {
     const short = Math.round(
       (new Date(`${cycle.nextPaydayLatest}T12:00:00`).getTime() -

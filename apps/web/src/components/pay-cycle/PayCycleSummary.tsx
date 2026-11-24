@@ -26,10 +26,13 @@ export function Forecast({ cycle }: { cycle: PayCycle }) {
 
 /** Dashboard card: what is left of this paycheck and whether it lasts to payday. */
 export function PayCycleSummary() {
-  const { data: cycle, isLoading } = usePayCycle();
+  const { data: cycle, isLoading, isError } = usePayCycle();
   if (isLoading) return null;
 
   if (!cycle) {
+    // A failed request leaves `cycle` undefined too; only an API answer of
+    // `null` means there's no salary set up. (A failed refetch keeps old data.)
+    if (isError || cycle === undefined) return null;
     return (
       <Card className="flex items-center gap-3 p-4">
         <Wallet size={18} className="shrink-0 text-pulse-v2" />
