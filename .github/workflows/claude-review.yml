@@ -23,18 +23,18 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 1
 
       - name: Review
         id: review
-        # Pinned to the commit of v1.0.289 (supply-chain hygiene: no moving tags).
-        uses: anthropics/claude-code-action@eb56b6666facdbd501035f4a0269d8caee2e7a8b
+        # Every action is pinned to a commit SHA (supply-chain hygiene: tags can move).
+        uses: anthropics/claude-code-action@eb56b6666facdbd501035f4a0269d8caee2e7a8b # v1.0.289
         with:
-          # Pro/Max token from `claude setup-token`. To use an API key instead,
-          # swap this for: anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # A dedicated Anthropic API key in a workspace with a monthly spend
+          # limit, so a leaked key or a runaway run has a known worst case.
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
