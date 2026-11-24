@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { GoalsService } from './goals.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -36,8 +36,10 @@ function makePrismaMock() {
       update: jest.fn().mockResolvedValue({}),
       delete: jest.fn(),
     },
-    budgetBucket: { findUnique: jest.fn() },
+    // The user's set-asides always include the goal's own.
+    budgetBucket: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([goalRow().bucket]) },
     expense: { findMany: jest.fn().mockResolvedValue([]) },
+    $transaction: jest.fn((ops: unknown[]) => Promise.all(ops)),
   };
 }
 
@@ -90,6 +92,57 @@ describe('GoalsService', () => {
 
     const { data } = prisma.savingsGoal.update.mock.calls[0][0];
     expect(data.baseDate).toEqual(day('2026-11-21'));
+  });
+
+  const toSavings = (date: string, amount: string) => ({
+    date: day(date), amount: new Prisma.Decimal(amount), currency: 'USD',
+    description: 'Transfer to savings', categoryId: 'c', subscriptionId: null,
+  });
+
+  it('keeps what was saved when the set-aside is unlinked', async () => {
+    prisma.savingsGoal.findUnique.mockResolvedValue(goalRow());
+    prisma.savingsGoal.findMany.mockResolvedValue([goalRow()]);
+    prisma.expense.findMany.mockResolvedValue([toSavings('2026-10-01', '400.00'), toSavings('2026-11-01', '800.00')]);
+
+    await service.update(USER, 'g-1', { bucketId: null });
+
+    // First the balance is folded in (200 + 1200), then the link is dropped.
+    expect(prisma.savingsGoal.update.mock.calls[0][0]).toEqual({
+      where: { id: 'g-1' },
+      data: { baseAmount: new Prisma.Decimal('1400.00'), baseDate: day('2026-11-21') },
+    });
+    expect(prisma.savingsGoal.update.mock.calls[1][0].data).toMatchObject({ bucketId: null });
+  });
+
+  it('does not fold in progress when the bucket is unchanged or a new balance is given', async () => {
+    prisma.savingsGoal.findUnique.mockResolvedValue(goalRow());
+    prisma.budgetBucket.findUnique.mockResolvedValue({ id: 'b-1', userId: USER, kind: 'SAVINGS' });
+    await service.update(USER, 'g-1', { bucketId: 'b-1', name: 'Renamed' });
+    await service.update(USER, 'g-1', { bucketId: null, baseAmount: '500.00' });
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('counts an expense only toward the set-aside it pays first, as the pay cycle does', async () => {
+    prisma.savingsGoal.findMany.mockResolvedValue([goalRow()]);
+    prisma.budgetBucket.findMany.mockResolvedValue([
+      { id: 'b-0', name: 'Transfers', kind: 'TRANSFER', amount: new Prisma.Decimal('800.00'), currency: 'USD',
+        matchText: 'TRANSFER', categoryId: null },
+      goalRow().bucket,
+    ]);
+    prisma.expense.findMany.mockResolvedValue([toSavings('2026-10-01', '400.00')]);
+
+    const [goal] = await service.list(USER);
+    expect(goal?.progress.saved).toBe('200.00');
+  });
+
+  it('only links savings set-asides', async () => {
+    prisma.budgetBucket.findUnique.mockResolvedValue({ id: 'b-rent', userId: USER, kind: 'TRANSFER' });
+    await expect(
+      service.create(USER, {
+        name: 'Trip', targetAmount: '900.00', currency: 'USD', milestones: [], baseAmount: '0', bucketId: 'b-rent',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("refuses to link someone else's set-aside", async () => {

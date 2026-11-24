@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { moneyString } from './expense.js';
+import { currencyInput, moneyString } from './expense.js';
 
 /**
  * A savings target, optionally in steps (an emergency fund: 1,000 → 2,300 →
@@ -37,8 +37,8 @@ const milestoneList = z.array(moneyString).max(10);
 
 export const createSavingsGoalSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  targetAmount: moneyString,
-  currency: z.string().length(3).default('USD'),
+  targetAmount: moneyString.refine((v) => Number(v) > 0, 'Target must be more than 0'),
+  currency: currencyInput,
   milestones: milestoneList.default([]),
   /** What is already saved today. */
   baseAmount: moneyString.default('0'),

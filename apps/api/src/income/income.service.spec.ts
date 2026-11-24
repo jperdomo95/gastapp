@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { IncomeService } from './income.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { GoalsService } from '../goals/goals.service';
 
 const USER = 'user-1';
 const NOW = new Date('2026-11-21T12:00:00.000Z');
@@ -55,15 +56,18 @@ function makePrismaMock() {
 describe('IncomeService', () => {
   let prisma: ReturnType<typeof makePrismaMock>;
   let subscriptions: { runDueGenerations: jest.Mock };
+  let goals: { freezeBalances: jest.Mock };
   let service: IncomeService;
 
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(NOW);
     prisma = makePrismaMock();
     subscriptions = { runDueGenerations: jest.fn().mockResolvedValue({}) };
+    goals = { freezeBalances: jest.fn().mockResolvedValue(undefined) };
     service = new IncomeService(
       prisma as unknown as PrismaService,
       subscriptions as unknown as SubscriptionsService,
+      goals as unknown as GoalsService,
     );
   });
 
@@ -138,6 +142,14 @@ describe('IncomeService', () => {
       prisma.budgetBucket.findUnique.mockResolvedValue({ id: 'b-1', userId: 'someone-else' });
       await expect(service.removeBucket(USER, 'b-1')).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.budgetBucket.delete).not.toHaveBeenCalled();
+    });
+
+    it('folds linked goals\' progress into their balance before deleting a bucket', async () => {
+      prisma.budgetBucket.findUnique.mockResolvedValue({ id: 'b-1', userId: USER });
+      await service.removeBucket(USER, 'b-1');
+      expect(goals.freezeBalances).toHaveBeenCalledWith(USER, { bucketId: 'b-1' });
+      expect(goals.freezeBalances.mock.invocationCallOrder[0])
+        .toBeLessThan(prisma.budgetBucket.delete.mock.invocationCallOrder[0]!);
     });
 
     it('keeps set-aside payments and subscription charges out of day-to-day spending', async () => {

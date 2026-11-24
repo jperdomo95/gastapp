@@ -55,6 +55,21 @@ describe('goalProgress', () => {
     expect(result).toMatchObject({ rateSource: 'HISTORY', ratePerMonth: '304.38' });
   });
 
+  it('gives no rate when the recent history rounds to nothing a month', () => {
+    const result = goalProgress(
+      { ...FUND, bucket: { ...BUCKET, amount: '0.00' } },
+      [toSavings('2026-10-10', '0.01')],
+      TODAY,
+    );
+    expect(result).toMatchObject({ ratePerMonth: null, rateSource: null, contributed: '0.01' });
+  });
+
+  it('does not count a transfer dated before the balance was entered, even if imported later', () => {
+    // The balance typed in on the base day already includes money that landed by then.
+    const result = goalProgress({ ...FUND, baseAmount: '1000.00', baseDate: '2026-11-21' }, [toSavings('2026-11-20', '400.00')], '2026-11-24');
+    expect(result.saved).toBe('1000.00');
+  });
+
   it('gives no dates without a set-aside or enough history', () => {
     const result = goalProgress({ ...FUND, bucket: null, baseDate: '2026-11-10' }, [], TODAY);
     expect(result).toMatchObject({ ratePerMonth: null, rateSource: null, contributed: '0.00' });

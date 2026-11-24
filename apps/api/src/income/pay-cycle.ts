@@ -208,6 +208,15 @@ const normText = (s: string) =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
 
 /** Does this expense pay into the bucket — by its category or the text in its description? */
+/**
+ * The set-aside an expense pays: the first that matches, in the user's order.
+ * Subscription charges never pay a set-aside. Shared with savings goals so both
+ * views attribute an expense the same way.
+ */
+export function bucketFor(buckets: CycleBucket[], e: CycleExpense): CycleBucket | undefined {
+  return e.fromSubscription ? undefined : buckets.find((b) => paysBucket(b, e));
+}
+
 export function paysBucket(b: CycleBucket, e: CycleExpense): boolean {
   if (b.categoryId && e.categoryId === b.categoryId) return true;
   return Boolean(b.matchText && e.description && normText(e.description).includes(normText(b.matchText)));
@@ -280,7 +289,7 @@ export function computePayCycle(input: {
 
   // Set-asides: what each has received this cycle, and what is still to go.
   const buckets = (input.buckets ?? []).filter((b) => b.currency === currency);
-  const bucketOf = (e: CycleExpense) => (e.fromSubscription ? undefined : buckets.find((b) => paysBucket(b, e)));
+  const bucketOf = (e: CycleExpense) => bucketFor(buckets, e);
   const paid = new Map<string, number>();
   for (const e of ours) {
     const b = bucketOf(e);

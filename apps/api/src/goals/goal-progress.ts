@@ -3,7 +3,7 @@
  * string-dated, like ../income/pay-cycle.
  */
 import { daysBetween } from '../subscriptions/recurrence';
-import { paysBucket, shiftDays, type CycleBucket, type CycleExpense } from '../income/pay-cycle';
+import { bucketFor, shiftDays, type CycleBucket, type CycleExpense } from '../income/pay-cycle';
 
 export interface GoalInput {
   targetAmount: string;
@@ -12,6 +12,12 @@ export interface GoalInput {
   baseAmount: string;
   baseDate: string;
   bucket: CycleBucket | null;
+  /**
+   * All the user's set-asides in pay-cycle order. An expense counts toward the
+   * goal only if the goal's set-aside is the one it pays (the first match), as
+   * in the pay cycle. Defaults to just the goal's own set-aside.
+   */
+  allBuckets?: CycleBucket[];
 }
 
 export interface GoalProgress {
@@ -34,10 +40,12 @@ const money = (c: number) => (c / 100).toFixed(2);
 export function goalProgress(goal: GoalInput, expenses: CycleExpense[], today: string): GoalProgress {
   const { bucket } = goal;
   // Money moved into the goal: payments to its set-aside after the balance was last entered.
+  // (Transfers dated on or before baseDate are already in the balance entered then.)
+  const buckets = goal.allBuckets ?? (bucket ? [bucket] : []);
   const contributions = bucket
     ? expenses.filter((e) =>
-        e.currency === goal.currency && !e.fromSubscription &&
-        e.date > goal.baseDate && e.date <= today && paysBucket(bucket, e))
+        e.currency === goal.currency &&
+        e.date > goal.baseDate && e.date <= today && bucketFor(buckets, e)?.id === bucket.id)
     : [];
   const contributed = contributions.reduce((acc, e) => acc + cents(e.amount), 0);
   const saved = cents(goal.baseAmount) + contributed;
@@ -55,8 +63,10 @@ export function goalProgress(goal: GoalInput, expenses: CycleExpense[], today: s
     if (span >= MIN_HISTORY_DAYS) {
       const since = shiftDays(today, -span);
       const recent = contributions.filter((e) => e.date > since).reduce((a, e) => a + cents(e.amount), 0);
-      if (recent > 0) {
-        rate = Math.round(recent / (span / DAYS_PER_MONTH));
+      const perMonth = Math.round(recent / (span / DAYS_PER_MONTH));
+      // A few cents over months rounds to 0: no rate, rather than "saving $0/month".
+      if (perMonth > 0) {
+        rate = perMonth;
         rateSource = 'HISTORY';
       }
     }

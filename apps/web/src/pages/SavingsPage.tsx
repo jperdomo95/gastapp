@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Pencil, PiggyBank, Plus, Trash2 } from 'lucide-react';
 import {
-  createSavingsGoalSchema, type CreateSavingsGoalDto, type SavingsGoal,
+  CURRENCY, createSavingsGoalSchema, type CreateSavingsGoalDto, type SavingsGoal,
 } from '@gastapp/types';
 import { useCreateGoal, useDeleteGoal, useGoals, useUpdateGoal } from '@/hooks/use-goals';
 import { useBuckets } from '@/hooks/use-income';
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogClose, DialogContent } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { apiErrorMessage } from '@/lib/api-error';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -111,10 +112,16 @@ export function SavingsPage() {
         loading={remove.isPending}
         onConfirm={async () => {
           if (!deleting) return;
-          await remove.mutateAsync(deleting.id);
-          setDeleting(null);
+          try {
+            await remove.mutateAsync(deleting.id);
+            setDeleting(null);
+          } catch {
+            // Shown below from remove.error.
+          }
         }}
-      />
+      >
+        {remove.error && <p className="mt-3 text-xs text-red-400">{apiErrorMessage(remove.error)}</p>}
+      </ConfirmDialog>
     </div>
   );
 }
@@ -136,27 +143,37 @@ function GoalForm({ goal, onDone }: { goal?: SavingsGoal; onDone: () => void }) 
       ? {
           name: goal.name,
           targetAmount: goal.targetAmount,
-          currency: goal.currency,
+          currency: CURRENCY,
           milestones: goal.milestones,
           baseAmount: goal.baseAmount,
           bucketId: goal.bucketId,
         }
-      : { currency: 'USD', milestones: [], baseAmount: '0' },
+      : { currency: CURRENCY, milestones: [], baseAmount: '0' },
   });
   const bucketId = watch('bucketId');
+  const saveError = create.error ?? update.error;
+  // Only savings set-asides can fund a goal (a transfer or reserve isn't saving).
+  const savingsBuckets = buckets?.filter((b) => b.kind === 'SAVINGS');
+  // The server drops steps at or above the target; say so instead of losing them quietly.
+  const target = Number(watch('targetAmount'));
+  const droppedSteps = (watch('milestones') ?? []).filter((m) => target > 0 && Number(m) >= target);
 
   return (
     <form
       className="space-y-4"
       onSubmit={handleSubmit(async (dto) => {
-        if (goal) {
-          // The balance has its own dialog; sending it here would re-date it.
-          const { baseAmount: _balance, ...rest } = dto;
-          await update.mutateAsync({ id: goal.id, dto: rest });
-        } else {
-          await create.mutateAsync(dto);
+        try {
+          if (goal) {
+            // The balance has its own dialog; sending it here would re-date it.
+            const { baseAmount: _balance, ...rest } = dto;
+            await update.mutateAsync({ id: goal.id, dto: rest });
+          } else {
+            await create.mutateAsync(dto);
+          }
+          onDone();
+        } catch {
+          // Shown below from the mutation's error.
         }
-        onDone();
       })}
     >
       <div className="space-y-1.5">
@@ -192,6 +209,12 @@ function GoalForm({ goal, onDone }: { goal?: SavingsGoal; onDone: () => void }) 
           }}
         />
         {errors.milestones && <p className="text-xs text-red-400">Steps must be amounts, like 1000, 2500</p>}
+        {droppedSteps.length > 0 && (
+          <p className="text-xs text-amber-400">
+            {droppedSteps.map((m) => goalMoney(m, CURRENCY)).join(', ')} is not below the target and
+            won&apos;t be kept. To enter several steps, separate them with a space or “;” (e.g. 500; 750).
+          </p>
+        )}
       </div>
 
       <div className="space-y-1.5">
@@ -203,7 +226,7 @@ function GoalForm({ goal, onDone }: { goal?: SavingsGoal; onDone: () => void }) 
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={NO_BUCKET}>None — I&apos;ll update the balance myself</SelectItem>
-            {buckets?.map((b) => (
+            {savingsBuckets?.map((b) => (
               <SelectItem key={b.id} value={b.id}>
                 {b.name} ({goalMoney(b.amount, b.currency)} per paycheck)
               </SelectItem>
@@ -211,10 +234,12 @@ function GoalForm({ goal, onDone }: { goal?: SavingsGoal; onDone: () => void }) 
           </SelectContent>
         </Select>
         <p className="text-xs text-pulse-faint">
-          Its payments add to the goal, and its amount sets the pace for the dates. Create one under
-          Income → Off the top each payday.
+          Its payments add to the goal, and its amount sets the pace for the dates. Create a Savings
+          set-aside under Income → Off the top each payday.
         </p>
       </div>
+
+      {saveError && <p className="text-xs text-red-400">{apiErrorMessage(saveError)}</p>}
 
       <div className="flex justify-end gap-2 pt-2">
         <DialogClose asChild>
@@ -237,8 +262,12 @@ function BalanceForm({ goal, onDone }: { goal: SavingsGoal; onDone: () => void }
       onSubmit={async (e) => {
         e.preventDefault();
         if (!valid) return;
-        await update.mutateAsync({ id: goal.id, dto: { baseAmount: amount } });
-        onDone();
+        try {
+          await update.mutateAsync({ id: goal.id, dto: { baseAmount: amount } });
+          onDone();
+        } catch {
+          // Shown below from update.error.
+        }
       }}
     >
       <p className="text-sm text-pulse-dim">
@@ -249,6 +278,7 @@ function BalanceForm({ goal, onDone }: { goal: SavingsGoal; onDone: () => void }
         <Label htmlFor="goal-new-balance">Balance today</Label>
         <Input id="goal-new-balance" value={amount} onChange={(e) => setAmount(e.target.value)} />
       </div>
+      {update.error && <p className="text-xs text-red-400">{apiErrorMessage(update.error)}</p>}
       <div className="flex justify-end gap-2 pt-2">
         <DialogClose asChild>
           <Button type="button" variant="ghost">Cancel</Button>

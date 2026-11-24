@@ -7,6 +7,7 @@ import type {
 } from '@gastapp/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { GoalsService } from '../goals/goals.service';
 import { toDateString, toDbDate } from '../subscriptions/recurrence';
 import { todayInTimezone } from '../common/timezone';
 import { computePayCycle, shiftDays } from './pay-cycle';
@@ -23,6 +24,7 @@ export class IncomeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptions: SubscriptionsService,
+    private readonly goals: GoalsService,
   ) {}
 
   // --- Sources -------------------------------------------------------------
@@ -159,6 +161,8 @@ export class IncomeService {
 
   async removeBucket(userId: string, id: string) {
     await this.ownedBucket(userId, id);
+    // Goals linked to it keep what they saved through it (the FK then unlinks them).
+    await this.goals.freezeBalances(userId, { bucketId: id });
     await this.prisma.budgetBucket.delete({ where: { id } });
   }
 
