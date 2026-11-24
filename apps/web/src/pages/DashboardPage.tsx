@@ -11,6 +11,7 @@ import { useMonthlyTotals, useCategoryBreakdown } from '@/hooks/use-reports';
 import { useThemeStore } from '@/stores/theme-store';
 import { Card } from '@/components/ui/card';
 import { PayCycleSummary } from '@/components/pay-cycle/PayCycleSummary';
+import { TopGoal } from '@/components/goals/TopGoal';
 import { catColor, catHue, catSoft, catTint, usd } from '@/lib/pulse';
 import { currentMonthKey, monthRange, trailingMonthsRange } from '@/lib/date-range';
 
@@ -114,6 +115,7 @@ export function DashboardPage() {
       </Card>
 
       <PayCycleSummary />
+      <TopGoal />
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 gap-3">

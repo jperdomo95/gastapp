@@ -14,6 +14,7 @@ function useSubscriptionInvalidation() {
   return () => {
     qc.invalidateQueries({ queryKey: ['subscriptions'] });
     qc.invalidateQueries({ queryKey: ['expenses'] });
+    qc.invalidateQueries({ queryKey: ['goals'] });
     qc.invalidateQueries({ queryKey: ['reports'] });
   };
 }

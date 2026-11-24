@@ -6,10 +6,16 @@ import type {
   UpdateIncomeSourceDto,
 } from '@gastapp/types';
 
-/** Income writes move the pay cycle, so everything under 'income' refetches. */
+/**
+ * Income writes move the pay cycle, so everything under 'income' refetches.
+ * Set-asides fund goals (and deleting one folds its goals' progress in), so goals too.
+ */
 function useIncomeInvalidation() {
   const qc = useQueryClient();
-  return () => qc.invalidateQueries({ queryKey: ['income'] });
+  return () => Promise.all([
+    qc.invalidateQueries({ queryKey: ['income'] }),
+    qc.invalidateQueries({ queryKey: ['goals'] }),
+  ]);
 }
 
 export function usePayCycle() {
