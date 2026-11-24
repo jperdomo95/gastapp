@@ -57,6 +57,8 @@ export interface CycleSubscription {
   endDate: string | null;
   /** The next charge not yet in the ledger. Null once finished. */
   nextOccurrenceDate: string | null;
+  /** Scheduled price changes, ordered by `effectiveFrom` ascending. */
+  amountChanges?: { amount: string; effectiveFrom: string }[];
 }
 
 export interface PayWindow {
@@ -145,10 +147,8 @@ export function windowStartedBy(source: CycleSource, date: string): PayWindow {
 /** The window a deposit on `date` most plausibly belongs to (paid early, on time or late). */
 export function windowOf(source: CycleSource, date: string): PayWindow {
   const [y, m] = ymOf(date);
-  const distance = (w: PayWindow) =>
-    date < w.start ? daysBetween(date, w.start) : date > w.end ? daysBetween(w.end, date) : 0;
   return [payWindow(source, y, m - 1), payWindow(source, y, m), payWindow(source, y, m + 1)]
-    .reduce((best, w) => (distance(w) < distance(best) ? w : best));
+    .reduce((best, w) => (distanceToWindow(w, date) < distanceToWindow(best, date) ? w : best));
 }
 
 /** `date` moved by `days` (negative goes back). */
@@ -161,21 +161,47 @@ export function shiftDays(date: string, days: number): string {
 const cents = (amount: string) => Math.round(Number(amount) * 100);
 const money = (c: number) => (c / 100).toFixed(2);
 
+/** The app is USD-only for now; rows in any other currency are legacy and ignored. */
+const CURRENCY = 'USD';
+
 /**
- * Charges of one subscription dated after `after` and before `before`. A charge
- * on the payday itself is left to the next paycheck.
+ * How far outside its pay window a deposit may land and still count as that
+ * payday. Anything further off (a bonus, a reimbursement matched by text) is
+ * extra income, not a new cycle.
+ */
+export const PAYDAY_TOLERANCE_DAYS = 5;
+
+/** Full days after payday needed before a spending pace is projected forward. */
+export const MIN_PACE_DAYS = 3;
+/** The pace looks back at most this many full days. */
+const PACE_WINDOW_DAYS = 7;
+
+/** The price in force on `date`: the latest change effective by then, else the base amount. */
+function amountOn(s: CycleSubscription, date: string): number {
+  let price = s.amount;
+  for (const c of s.amountChanges ?? []) {
+    if (c.effectiveFrom <= date) price = c.amount;
+    else break;
+  }
+  return cents(price);
+}
+
+/**
+ * Total of one subscription's charges dated after `after` and before `before`,
+ * each at the price in force on its date. A charge on the payday itself is left
+ * to the next paycheck.
  */
 function chargesBetween(s: CycleSubscription, after: string, before: string): number {
   if (!s.nextOccurrenceDate) return 0;
-  let count = 0;
+  let total = 0;
   let date = s.nextOccurrenceDate;
   // Bounded: at most ~10 weekly charges fit in one pay cycle.
   for (let guard = 0; guard < 60 && date < before; guard++) {
     if (s.endDate && date > s.endDate) break;
-    if (date > after) count++;
+    if (date > after) total += amountOn(s, date);
     date = nextOccurrenceOnOrAfter(s.startDate, s.frequency, dayAfter(date)).date;
   }
-  return count;
+  return total;
 }
 
 const normText = (s: string) =>
@@ -187,9 +213,15 @@ export function paysBucket(b: CycleBucket, e: CycleExpense): boolean {
   return Boolean(b.matchText && e.description && normText(e.description).includes(normText(b.matchText)));
 }
 
+/** Days between `date` and the nearest edge of `w` (0 inside it). */
+const distanceToWindow = (w: PayWindow, date: string) =>
+  date < w.start ? daysBetween(date, w.start) : date > w.end ? daysBetween(w.end, date) : 0;
+
+const windowIndex = (w: PayWindow) => w.year * 12 + w.month;
+
 /**
  * The pay cycle containing `today`, driven by the main source — the biggest
- * active one. Returns null when there is no active source.
+ * active USD one. Returns null when there is no active source.
  */
 export function computePayCycle(input: {
   today: string;
@@ -200,27 +232,29 @@ export function computePayCycle(input: {
   buckets?: CycleBucket[];
 }): PayCycleResult | null {
   const { today } = input;
-  const active = input.sources.filter((s) => s.active);
+  const currency = CURRENCY;
+  const active = input.sources.filter((s) => s.active && s.currency === currency);
   const main = [...active].sort((a, b) => cents(b.amount) - cents(a.amount))[0];
   if (!main) return null;
-  const currency = main.currency;
 
-  // Start: the main source's latest recorded deposit, if it is for the window
-  // that has already opened (or the next one, paid early); otherwise the day
-  // that window opened, unconfirmed.
+  // Start: the payday deposit for the window that has already opened (or the
+  // next one, paid early); otherwise the day that window opened, unconfirmed.
+  // Only a deposit landing near its window is a payday, and the first one in
+  // that window wins — later top-ups from the same source don't restart it.
   const expected = windowStartedBy(main, today);
-  const lastDeposit = input.incomes
-    .filter((i) => i.sourceId === main.id && i.date <= today)
-    .map((i) => i.date)
-    .sort()
-    .at(-1);
-  const depositWindow = lastDeposit ? windowOf(main, lastDeposit) : null;
-  const confirmed =
-    depositWindow !== null &&
-    depositWindow.year * 12 + depositWindow.month >= expected.year * 12 + expected.month;
+  let payday: { date: string; window: PayWindow } | null = null;
+  for (const i of input.incomes) {
+    if (i.sourceId !== main.id || i.date > today) continue;
+    const window = windowOf(main, i.date);
+    if (distanceToWindow(window, i.date) > PAYDAY_TOLERANCE_DAYS) continue;
+    const newer = !payday || windowIndex(window) > windowIndex(payday.window);
+    const earlier = payday && windowIndex(window) === windowIndex(payday.window) && i.date < payday.date;
+    if (newer || earlier) payday = { date: i.date, window };
+  }
+  const confirmed = payday !== null && windowIndex(payday.window) >= windowIndex(expected);
 
-  const start = confirmed && lastDeposit ? lastDeposit : expected.start;
-  const current = confirmed && depositWindow ? depositWindow : expected;
+  const start = confirmed && payday ? payday.date : expected.start;
+  const current = confirmed && payday ? payday.window : expected;
   const next = payWindow(main, current.year, current.month + 1);
 
   const inCycle = (date: string) => date >= start && date <= today;
@@ -242,7 +276,7 @@ export function computePayCycle(input: {
 
   const committed = input.subscriptions
     .filter((s) => s.currency === currency)
-    .reduce((acc, s) => acc + cents(s.amount) * chargesBetween(s, today, next.end), 0);
+    .reduce((acc, s) => acc + chargesBetween(s, today, next.end), 0);
 
   // Set-asides: what each has received this cycle, and what is still to go.
   const buckets = (input.buckets ?? []).filter((b) => b.currency === currency);
@@ -275,12 +309,19 @@ export function computePayCycle(input: {
   // The pace that matters is day-to-day spending: fixed charges and set-asides
   // are already accounted for in `committed` and `reserved`.
   const flexibleDaily = spentOn(start, today, isFlexible);
-  const recentDays = Math.min(7, flexibleDaily.length);
-  const recentPerDay = Math.round(sum(flexibleDaily.slice(-recentDays)) / recentDays);
+
+  // The pace looks at full days since payday only: the payday itself (rent,
+  // transfers out) and today (half over) would skew it. Too few days → no projection.
+  const paceDays = flexibleDaily.slice(1, -1).slice(-PACE_WINDOW_DAYS);
+  const recentDays = paceDays.length >= MIN_PACE_DAYS ? paceDays.length : 0;
+  const recentPerDay = recentDays > 0 ? Math.round(sum(paceDays) / recentDays) : 0;
 
   // Allowance: what day-to-day spending gets once everything fixed is paid.
   const subscriptionCharges = sum(spentOn(start, today, (e) => Boolean(e.fromSubscription))) + committed;
-  const cycleBudget = income - sum(buckets.map((b) => cents(b.amount))) - subscriptionCharges;
+  // A set-aside takes its amount off the top, or what was actually paid into it
+  // if more — that extra is left out of flexible spending, so it must come off here.
+  const setAside = sum(buckets.map((b) => Math.max(cents(b.amount), paid.get(b.id) ?? 0)));
+  const cycleBudget = income - setAside - subscriptionCharges;
   const allowancePerDay = Math.max(0, Math.floor(cycleBudget / totalDays));
   const weekIndex = Math.floor(daysBetween(start, today) / 7);
   const weekStart = shiftDays(start, weekIndex * 7);
@@ -292,9 +333,10 @@ export function computePayCycle(input: {
   if (left <= 0) {
     projectedZeroDate = today;
   } else if (recentPerDay > 0) {
-    // Today's spending is already in `left`; this is the day the balance hits zero.
+    // Today's spending is already in `left`; this is the day the balance hits
+    // zero. It must last through the day before the latest payday.
     const runsOut = shiftDays(today, Math.ceil(left / recentPerDay));
-    if (runsOut < next.end) projectedZeroDate = runsOut;
+    if (runsOut < shiftDays(next.end, -1)) projectedZeroDate = runsOut;
   }
 
   // The previous cycle: from its recorded (or expected) payday to the day before this one.
@@ -308,12 +350,14 @@ export function computePayCycle(input: {
   const prevStart = prevDeposit ?? prevWindow.start;
   const prevEnd = shiftDays(start, -1);
   let previous: PayCycleResult['previous'] = null;
-  if (prevStart <= prevEnd) {
+  const prevDaily = prevStart <= prevEnd ? spentOn(prevStart, prevEnd) : [];
+  // No spending recorded then means no history (a new user), not a $0 cycle.
+  if (prevDaily.some((c) => c > 0)) {
     let running = 0;
     previous = {
       start: prevStart,
       end: prevEnd,
-      cumulative: spentOn(prevStart, prevEnd).map((c) => money((running += c))),
+      cumulative: prevDaily.map((c) => money((running += c))),
     };
   }
 

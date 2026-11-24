@@ -237,15 +237,17 @@ export function parseBankCsv(text: string): ParseResult {
     let outflow: number;
     const debitRaw = cell(cols.debit);
     if (cols.debit || cols.credit) {
-      if (debitRaw) {
-        const v = parseAmount(debitRaw);
-        if (v === null) {
-          errors.push({ line, reason: `Invalid debit amount: "${debitRaw}"` });
-          return;
-        }
-        outflow = Math.abs(v);
+      const debit = debitRaw ? parseAmount(debitRaw) : 0;
+      if (debit === null) {
+        errors.push({ line, reason: `Invalid debit amount: "${debitRaw}"` });
+        return;
+      }
+      if (debit !== 0) {
+        outflow = Math.abs(debit);
       } else {
-        skipped++; // credit/inflow row, or no money movement — not an expense
+        // Empty or 0.00 debit (many banks zero-fill the unused column): a
+        // credit/inflow row, or no money movement — not an expense.
+        skipped++;
         const inflow = parseAmount(cell(cols.credit));
         if (inflow !== null && Math.abs(inflow) > 0) {
           credits.push({ line, date, description: cell(cols.description), amount: Math.abs(inflow).toFixed(2) });
