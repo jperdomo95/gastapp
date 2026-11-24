@@ -90,6 +90,46 @@ export const listSubscriptionsQuerySchema = z.object({
 });
 export type ListSubscriptionsQuery = z.infer<typeof listSubscriptionsQuerySchema>;
 
+/**
+ * What the recurring-charge finder thinks a group of hand-entered or imported
+ * expenses is.
+ *
+ * - ACTIVE: charged on schedule, next charge is still ahead (or only just due).
+ * - STOPPED: the schedule held, but the last expected charge never came —
+ *   usually a cancelled service, or a card that started failing.
+ */
+export const recurringCandidateStatusSchema = z.enum(['ACTIVE', 'STOPPED']);
+export type RecurringCandidateStatus = z.infer<typeof recurringCandidateStatusSchema>;
+
+export const recurringCandidateSchema = z.object({
+  /** Stable key for the merchant + price tier, e.g. `NETFLIX` or `GOOGLE ONE@2.99`. */
+  key: z.string(),
+  /** Human-friendly merchant name, suitable as a subscription name. */
+  name: z.string(),
+  /** The most recent charge — the current price, after any increase. */
+  amount: moneyString,
+  currency: z.string().length(3),
+  frequency: recurrenceFrequencySchema,
+  status: recurringCandidateStatusSchema,
+  firstChargeDate: z.string().date(),
+  lastChargeDate: z.string().date(),
+  /** When the next charge is due if the schedule continues. */
+  nextExpectedDate: z.string().date(),
+  chargeCount: z.number().int(),
+  /** The category most of the matched expenses were filed under. */
+  categoryId: z.string(),
+  /** 0–1: how regular the dates and amounts were. */
+  confidence: z.number().min(0).max(1),
+  /** An existing subscription that already covers this merchant, if any. */
+  trackedSubscriptionId: z.string().nullable(),
+  /**
+   * Another active charge from the same merchant at a different price — e.g.
+   * two Google One plans billed to the same card.
+   */
+  possibleDuplicate: z.boolean(),
+});
+export type RecurringCandidate = z.infer<typeof recurringCandidateSchema>;
+
 export const runGenerationResultSchema = z.object({
   generated: z.number().int(),
   subscriptionsProcessed: z.number().int(),

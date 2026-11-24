@@ -8,8 +8,15 @@ import type {
 } from '@gastapp/types';
 import { todayInTimezone } from '../common/timezone';
 import {
-  dayAfter, maxDateString, nextOccurrenceOnOrAfter, occurrenceOn, toDateString, toDbDate,
+  addDays, dayAfter, maxDateString, nextOccurrenceOnOrAfter, occurrenceOn, toDateString, toDbDate,
 } from './recurrence';
+import { detectRecurringCharges } from './recurring-detector';
+
+/**
+ * How far back the recurring-charge finder looks. Just over two years, so a
+ * yearly plan has had the chance to charge twice.
+ */
+const RECURRING_LOOKBACK_DAYS = 800;
 
 /**
  * Hard cap on how many periods a single generation pass will materialise, so a
@@ -100,6 +107,45 @@ export class SubscriptionsService {
       user: { timezone: user?.timezone ?? null },
     });
     return this.findOne(userId, created.id);
+  }
+
+  /**
+   * Recurring charges hiding in the user's hand-entered and imported expenses.
+   * Rows a subscription generated are left out — those are already tracked.
+   */
+  async findRecurringCandidates(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true },
+    });
+    const today = todayInTimezone(user?.timezone);
+
+    const [expenses, subscriptions] = await Promise.all([
+      this.prisma.expense.findMany({
+        where: {
+          userId,
+          subscriptionId: null,
+          date: { gte: toDbDate(addDays(today, -RECURRING_LOOKBACK_DAYS)) },
+        },
+        select: { date: true, amount: true, currency: true, description: true, categoryId: true },
+      }),
+      this.prisma.subscription.findMany({
+        where: { userId },
+        select: { id: true, name: true, amount: true, status: true },
+      }),
+    ]);
+
+    return detectRecurringCharges(
+      expenses.map((e) => ({
+        date: toDateString(e.date),
+        amount: e.amount.toFixed(2),
+        currency: e.currency,
+        description: e.description,
+        categoryId: e.categoryId,
+      })),
+      subscriptions.map((s) => ({ ...s, amount: s.amount.toFixed(2) })),
+      today,
+    );
   }
 
   async findOne(userId: string, id: string) {
