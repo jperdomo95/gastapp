@@ -77,4 +77,17 @@ describe('parseBankCsv', () => {
       { line: 3, date: '2026-05-02', description: 'Salary', amount: '2000.00' },
     ]);
   });
+  it('reads the credit column when the debit column is zero-filled', () => {
+    const csv = [
+      'Date,Description,Debit,Credit',
+      '2026-05-01,Groceries,45.20,0.00',
+      '2026-05-02,Salary,0.00,2000.00',
+    ].join('\n');
+    const { rows, credits, errors } = parseBankCsv(csv);
+    expect(errors).toEqual([]);
+    expect(rows.map((r) => r.amount)).toEqual(['45.20']);
+    expect(credits).toEqual([
+      { line: 3, date: '2026-05-02', description: 'Salary', amount: '2000.00' },
+    ]);
+  });
 });

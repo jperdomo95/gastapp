@@ -6,9 +6,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import type {
   CreateExpenseDto, UpdateExpenseDto, ListExpensesQuery, ImportExpensesResult,
 } from '@gastapp/types';
-import { parseBankCsv } from './csv-import';
+import { parseBankCsv, type ParsedExpenseRow } from './csv-import';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
-import { toDbDate } from '../subscriptions/recurrence';
+import { toDateString, toDbDate } from '../subscriptions/recurrence';
 import { matchIncomeSource } from '../income/match-source';
 
 @Injectable()
@@ -77,8 +77,20 @@ export class ExpensesService {
       throw new BadRequestException({ message: 'Could not import CSV', errors });
     }
 
+    // Bank exports carry no currency column; the app is USD-only.
+    const recorded = deposits.length > 0 ? await this.newDeposits(userId, deposits) : [];
+    const matchable = recorded.length > 0
+      ? (await this.prisma.incomeSource.findMany({
+          where: { userId },
+          select: { id: true, amount: true, currency: true, matchText: true, active: true },
+        })).map((s) => ({ ...s, amount: s.amount.toFixed(2) }))
+      : [];
+
+    // One transaction: a failed income write must not leave the expenses saved,
+    // or the user's retry would import every debit twice.
+    const writes: Prisma.PrismaPromise<unknown>[] = [];
     if (rows.length > 0) {
-      await this.prisma.expense.createMany({
+      writes.push(this.prisma.expense.createMany({
         data: rows.map((r) => ({
           amount: new Prisma.Decimal(r.amount),
           currency: 'USD',
@@ -87,18 +99,11 @@ export class ExpensesService {
           categoryId,
           userId,
         })),
-      });
+      }));
     }
-
-    if (deposits.length > 0) {
-      // Bank exports carry no currency column; the importer is USD-only, like expenses above.
-      const sources = await this.prisma.incomeSource.findMany({
-        where: { userId },
-        select: { id: true, amount: true, currency: true, matchText: true, active: true },
-      });
-      const matchable = sources.map((s) => ({ ...s, amount: s.amount.toFixed(2) }));
-      await this.prisma.income.createMany({
-        data: deposits.map((d) => ({
+    if (recorded.length > 0) {
+      writes.push(this.prisma.income.createMany({
+        data: recorded.map((d) => ({
           amount: new Prisma.Decimal(d.amount),
           currency: 'USD',
           description: d.description || null,
@@ -106,16 +111,48 @@ export class ExpensesService {
           sourceId: matchIncomeSource(matchable, { ...d, currency: 'USD' }),
           userId,
         })),
-      });
+      }));
     }
+    if (writes.length > 0) await this.prisma.$transaction(writes);
 
     return {
       imported: rows.length,
-      incomeImported: deposits.length,
-      // Credits recorded as income were not skipped.
-      skipped: skipped - deposits.length,
+      incomeImported: recorded.length,
+      // Credits recorded as income were not skipped; already-recorded ones were.
+      skipped: skipped - recorded.length,
       errors,
     };
+  }
+
+  /**
+   * The deposits not already recorded, so re-importing an overlapping statement
+   * doesn't count the same money twice. Matches on date, amount and description;
+   * a deposit repeated within the file is kept as many times as it appears beyond
+   * what is already stored (two equal transfers on one day are both real).
+   */
+  private async newDeposits(userId: string, deposits: ParsedExpenseRow[]) {
+    const dates = deposits.map((d) => d.date).sort();
+    const existing = await this.prisma.income.findMany({
+      where: {
+        userId,
+        date: { gte: toDbDate(dates[0]!), lte: toDbDate(dates[dates.length - 1]!) },
+      },
+      select: { date: true, amount: true, description: true },
+    });
+    const key = (date: string, amount: string, description: string | null) =>
+      `${date}|${amount}|${(description ?? '').trim()}`;
+    const stored = new Map<string, number>();
+    for (const e of existing) {
+      const k = key(toDateString(e.date), e.amount.toFixed(2), e.description);
+      stored.set(k, (stored.get(k) ?? 0) + 1);
+    }
+    return deposits.filter((d) => {
+      const k = key(d.date, d.amount, d.description || null);
+      const left = stored.get(k) ?? 0;
+      if (left === 0) return true;
+      stored.set(k, left - 1);
+      return false;
+    });
   }
 
   async update(userId: string, id: string, dto: UpdateExpenseDto) {
