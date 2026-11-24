@@ -101,6 +101,10 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 - **Review before merge.** Run `/code-review <PR>` on every PR. Fix every
   important finding, or answer it on the thread with reasoning. Resolve a
   thread only with a reply naming the fixing commit or the reason it stands.
+- **Merge gate.** `main` requires the `ci` check and (once #15 is live)
+  `claude-review`, which fails on any critical finding or on a missing verdict.
+  Fix the finding and push; don't bypass the gate as admin except to recover
+  from a broken review run.
 - **Agents.** `qa` verifies a change against the running app and only reports.
   `security-reviewer` covers any change to `apps/api/src/auth/**`, guards,
   CORS or helmet. `test-writer` and `e2e-writer` write tests. Fixes happen in
