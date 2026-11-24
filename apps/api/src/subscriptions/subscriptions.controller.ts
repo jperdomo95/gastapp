@@ -26,6 +26,12 @@ export class SubscriptionsController {
     return this.subscriptions.list(user.id, q);
   }
 
+  /** Recurring charges found in imported/hand-entered expenses that could become subscriptions. */
+  @Get('candidates')
+  candidates(@CurrentUser() user: AuthUser) {
+    return this.subscriptions.findRecurringCandidates(user.id);
+  }
+
   @Post()
   create(
     @CurrentUser() user: AuthUser,
