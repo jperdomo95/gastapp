@@ -41,6 +41,14 @@ function makePrismaMock() {
     },
     expense: { findMany: jest.fn().mockResolvedValue([]) },
     subscription: { findMany: jest.fn().mockResolvedValue([]) },
+    budgetBucket: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    category: { findUnique: jest.fn() },
   };
 }
 
@@ -112,6 +120,53 @@ describe('IncomeService', () => {
       prisma.income.findUnique.mockResolvedValue({ id: 'inc-1', userId: 'someone-else' });
       await expect(service.remove(USER, 'inc-1')).rejects.toBeInstanceOf(ForbiddenException);
       expect(prisma.income.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('set-asides', () => {
+    it("refuses a bucket tied to someone else's category", async () => {
+      prisma.category.findUnique.mockResolvedValue({ id: 'cat-x', isSystem: false, userId: 'someone-else' });
+      await expect(
+        service.createBucket(USER, {
+          name: 'Savings', kind: 'SAVINGS', amount: '300.00', currency: 'USD', categoryId: 'cat-x', sortOrder: 0,
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.budgetBucket.create).not.toHaveBeenCalled();
+    });
+
+    it("refuses to delete someone else's bucket", async () => {
+      prisma.budgetBucket.findUnique.mockResolvedValue({ id: 'b-1', userId: 'someone-else' });
+      await expect(service.removeBucket(USER, 'b-1')).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.budgetBucket.delete).not.toHaveBeenCalled();
+    });
+
+    it('keeps set-aside payments and subscription charges out of day-to-day spending', async () => {
+      prisma.incomeSource.findMany.mockResolvedValue([sourceRow()]);
+      prisma.income.findMany.mockResolvedValue([
+        { date: day('2026-10-29'), amount: new Prisma.Decimal('3000.00'), currency: 'USD', sourceId: 'src-1' },
+      ]);
+      const expense = (date: string, amount: string, description: string, subscriptionId: string | null = null) => ({
+        date: day(date), amount: new Prisma.Decimal(amount), currency: 'USD', description,
+        categoryId: 'cat-1', subscriptionId,
+      });
+      prisma.expense.findMany.mockResolvedValue([
+        expense('2026-10-29', '1200.00', 'TRANSFER TO ACCT 0042'),
+        expense('2026-11-03', '9.99', 'Streamflix', 'sub-1'),
+        expense('2026-11-20', '30.00', 'GROCER'),
+      ]);
+      prisma.budgetBucket.findMany.mockResolvedValue([
+        {
+          id: 'b-1', name: 'Shared costs', kind: 'TRANSFER', amount: new Prisma.Decimal('1200.00'),
+          currency: 'USD', matchText: '0042', categoryId: null, sortOrder: 0,
+        },
+      ]);
+
+      const result = await service.payCycle(USER);
+
+      expect(result?.buckets).toEqual([
+        { id: 'b-1', name: 'Shared costs', kind: 'TRANSFER', amount: '1200.00', paid: '1200.00' },
+      ]);
+      expect(result?.allowance.cycleSpent).toBe('30.00');
     });
   });
 

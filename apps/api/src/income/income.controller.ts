@@ -2,9 +2,10 @@ import {
   Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
 import {
-  createIncomeSchema, createIncomeSourceSchema, listIncomeQuerySchema, updateIncomeSourceSchema,
-  type CreateIncomeDto, type CreateIncomeSourceDto, type ListIncomeQuery,
-  type UpdateIncomeSourceDto,
+  createBudgetBucketSchema, createIncomeSchema, createIncomeSourceSchema, listIncomeQuerySchema,
+  updateBudgetBucketSchema, updateIncomeSourceSchema,
+  type CreateBudgetBucketDto, type CreateIncomeDto, type CreateIncomeSourceDto,
+  type ListIncomeQuery, type UpdateBudgetBucketDto, type UpdateIncomeSourceDto,
 } from '@gastapp/types';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -50,6 +51,34 @@ export class IncomeController {
   @HttpCode(204)
   removeSource(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.income.removeSource(user.id, id);
+  }
+
+  @Get('buckets')
+  listBuckets(@CurrentUser() user: AuthUser) {
+    return this.income.listBuckets(user.id);
+  }
+
+  @Post('buckets')
+  createBucket(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(createBudgetBucketSchema)) dto: CreateBudgetBucketDto,
+  ) {
+    return this.income.createBucket(user.id, dto);
+  }
+
+  @Patch('buckets/:id')
+  updateBucket(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateBudgetBucketSchema)) dto: UpdateBudgetBucketDto,
+  ) {
+    return this.income.updateBucket(user.id, id, dto);
+  }
+
+  @Delete('buckets/:id')
+  @HttpCode(204)
+  removeBucket(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.income.removeBucket(user.id, id);
   }
 
   @Get()

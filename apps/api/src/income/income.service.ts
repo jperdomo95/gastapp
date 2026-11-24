@@ -2,7 +2,8 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { Prisma } from '@prisma/client';
 import { INCOME_LIST_LIMIT } from '@gastapp/types';
 import type {
-  CreateIncomeDto, CreateIncomeSourceDto, ListIncomeQuery, PayCycle, UpdateIncomeSourceDto,
+  CreateBudgetBucketDto, CreateIncomeDto, CreateIncomeSourceDto, ListIncomeQuery, PayCycle,
+  UpdateBudgetBucketDto, UpdateIncomeSourceDto,
 } from '@gastapp/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
@@ -15,6 +16,7 @@ const CYCLE_LOOKBACK_DAYS = 80;
 
 type SourceRow = Prisma.IncomeSourceGetPayload<object>;
 type IncomeRow = Prisma.IncomeGetPayload<object>;
+type BucketRow = Prisma.BudgetBucketGetPayload<object>;
 
 @Injectable()
 export class IncomeService {
@@ -110,6 +112,56 @@ export class IncomeService {
     await this.prisma.income.delete({ where: { id } });
   }
 
+  // --- Set-asides (budget buckets) -----------------------------------------
+
+  async listBuckets(userId: string) {
+    const rows = await this.prisma.budgetBucket.findMany({
+      where: { userId },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    return rows.map(serializeBucket);
+  }
+
+  async createBucket(userId: string, dto: CreateBudgetBucketDto) {
+    if (dto.categoryId) await this.assertCategoryAccessible(userId, dto.categoryId);
+    const row = await this.prisma.budgetBucket.create({
+      data: {
+        name: dto.name,
+        kind: dto.kind,
+        amount: new Prisma.Decimal(dto.amount),
+        currency: dto.currency,
+        matchText: dto.matchText || null,
+        categoryId: dto.categoryId || null,
+        sortOrder: dto.sortOrder,
+        userId,
+      },
+    });
+    return serializeBucket(row);
+  }
+
+  async updateBucket(userId: string, id: string, dto: UpdateBudgetBucketDto) {
+    await this.ownedBucket(userId, id);
+    if (dto.categoryId) await this.assertCategoryAccessible(userId, dto.categoryId);
+    const row = await this.prisma.budgetBucket.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.kind !== undefined && { kind: dto.kind }),
+        ...(dto.amount !== undefined && { amount: new Prisma.Decimal(dto.amount) }),
+        ...(dto.currency !== undefined && { currency: dto.currency }),
+        ...(dto.matchText !== undefined && { matchText: dto.matchText || null }),
+        ...(dto.categoryId !== undefined && { categoryId: dto.categoryId || null }),
+        ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+      },
+    });
+    return serializeBucket(row);
+  }
+
+  async removeBucket(userId: string, id: string) {
+    await this.ownedBucket(userId, id);
+    await this.prisma.budgetBucket.delete({ where: { id } });
+  }
+
   // --- Pay cycle -----------------------------------------------------------
 
   /** The current pay cycle, or null until the user has an active income source. */
@@ -123,7 +175,7 @@ export class IncomeService {
     const today = todayInTimezone(user?.timezone);
     const since = toDbDate(shiftDays(today, -CYCLE_LOOKBACK_DAYS));
 
-    const [sources, incomes, expenses, subscriptions] = await Promise.all([
+    const [sources, incomes, expenses, subscriptions, buckets] = await Promise.all([
       this.prisma.incomeSource.findMany({ where: { userId, active: true } }),
       this.prisma.income.findMany({
         where: { userId, date: { gte: since } },
@@ -131,7 +183,10 @@ export class IncomeService {
       }),
       this.prisma.expense.findMany({
         where: { userId, date: { gte: since } },
-        select: { date: true, amount: true, currency: true, subscriptionId: true },
+        select: {
+          date: true, amount: true, currency: true, description: true, categoryId: true,
+          subscriptionId: true,
+        },
       }),
       this.prisma.subscription.findMany({
         where: { userId, status: 'ACTIVE', nextOccurrenceDate: { not: null } },
@@ -144,6 +199,10 @@ export class IncomeService {
           },
         },
       }),
+      // Same order as listBuckets: an expense matching two set-asides pays the first, every time.
+      this.prisma.budgetBucket.findMany({
+        where: { userId }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      }),
     ]);
 
     return computePayCycle({
@@ -153,8 +212,14 @@ export class IncomeService {
         ...i, date: toDateString(i.date), amount: i.amount.toFixed(2),
       })),
       expenses: expenses.map((e) => ({
-        ...e, date: toDateString(e.date), amount: e.amount.toFixed(2),
+        date: toDateString(e.date),
+        amount: e.amount.toFixed(2),
+        currency: e.currency,
+        description: e.description,
+        categoryId: e.categoryId,
+        fromSubscription: e.subscriptionId !== null,
       })),
+      buckets: buckets.map((b) => ({ ...b, amount: b.amount.toFixed(2) })),
       subscriptions: subscriptions.map((s) => ({
         amount: s.amount.toFixed(2),
         currency: s.currency,
@@ -168,6 +233,19 @@ export class IncomeService {
         })),
       })),
     });
+  }
+
+  private async ownedBucket(userId: string, id: string) {
+    const bucket = await this.prisma.budgetBucket.findUnique({ where: { id } });
+    if (!bucket) throw new NotFoundException('Bucket not found');
+    if (bucket.userId !== userId) throw new ForbiddenException();
+    return bucket;
+  }
+
+  private async assertCategoryAccessible(userId: string, categoryId: string) {
+    const cat = await this.prisma.category.findUnique({ where: { id: categoryId } });
+    if (!cat) throw new NotFoundException('Category not found');
+    if (!cat.isSystem && cat.userId !== userId) throw new ForbiddenException('Category not yours');
   }
 
   private async ownedSource(userId: string, id: string) {
@@ -198,4 +276,15 @@ const serializeIncome = (i: IncomeRow) => ({
   date: toDateString(i.date),
   sourceId: i.sourceId,
   createdAt: i.createdAt.toISOString(),
+});
+
+const serializeBucket = (b: BucketRow) => ({
+  id: b.id,
+  name: b.name,
+  kind: b.kind,
+  amount: b.amount.toFixed(2),
+  currency: b.currency,
+  matchText: b.matchText,
+  categoryId: b.categoryId,
+  sortOrder: b.sortOrder,
 });
