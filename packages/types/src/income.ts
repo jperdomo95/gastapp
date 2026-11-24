@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { moneyString } from './expense.js';
+import { currencyInput, moneyString } from './expense.js';
 
 const dayOfMonth = z.number().int().min(1).max(31);
 
@@ -26,7 +26,7 @@ export type IncomeSource = z.infer<typeof incomeSourceSchema>;
 export const createIncomeSourceSchema = z.object({
   name: z.string().trim().min(1).max(80),
   amount: moneyString,
-  currency: z.string().length(3).default('USD'),
+  currency: currencyInput,
   payDayFrom: dayOfMonth,
   payDayTo: dayOfMonth,
   matchText: z.string().trim().max(80).nullish(),
@@ -51,12 +51,15 @@ export type Income = z.infer<typeof incomeSchema>;
 
 export const createIncomeSchema = z.object({
   amount: moneyString,
-  currency: z.string().length(3).default('USD'),
+  currency: currencyInput,
   description: z.string().trim().max(200).nullish(),
   date: z.string().date(),
   sourceId: z.string().nullish(),
 });
 export type CreateIncomeDto = z.infer<typeof createIncomeSchema>;
+
+/** The deposit list returns at most this many rows, newest first. */
+export const INCOME_LIST_LIMIT = 200;
 
 export const listIncomeQuerySchema = z.object({
   from: z.string().date().optional(),
@@ -101,8 +104,8 @@ export type UpdateBudgetBucketDto = z.infer<typeof updateBudgetBucketSchema>;
 
 /**
  * The stretch of days one paycheck has to cover: from the last payday to the
- * end of the next pay window. Amounts are in the main source's currency;
- * spending in other currencies is counted separately, not converted.
+ * end of the next pay window. Amounts are USD (the app is USD-only for now);
+ * any legacy rows in other currencies are counted separately, not converted.
  */
 export const payCycleSchema = z.object({
   currency: z.string().length(3),
@@ -132,8 +135,12 @@ export const payCycleSchema = z.object({
   otherCurrencyExpenses: z.number().int(),
   /** Spending per day of this cycle, start…today. */
   daily: z.array(z.object({ date: z.string().date(), spent: moneyString })),
-  /** Average spend per day over the last `recentDays` days (at most a week). */
+  /**
+   * Average day-to-day spend over the last `recentDays` full days since payday
+   * (at most a week; payday, today and subscription charges left out).
+   */
   recentPerDay: moneyString,
+  /** 0 early in the cycle, when there are too few full days to project a pace. */
   recentDays: z.number().int(),
   /**
    * The day the money runs out at `recentPerDay`; null when it lasts until the

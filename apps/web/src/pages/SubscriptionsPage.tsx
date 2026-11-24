@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import {
+  CURRENCY,
   createSubscriptionSchema,
   type CreateSubscriptionDto,
   type RecurrenceFrequency,
@@ -262,7 +263,7 @@ function SubscriptionForm({
       ? {
           name: subscription.name,
           amount: subscription.amount,
-          currency: subscription.currency,
+          currency: CURRENCY,
           description: subscription.description ?? undefined,
           frequency: subscription.frequency,
           startDate: subscription.startDate,
@@ -270,7 +271,7 @@ function SubscriptionForm({
           categoryId: subscription.categoryId,
           backfillPastOccurrences: false,
         }
-      : { currency: 'USD', frequency: 'MONTHLY', startDate: today, backfillPastOccurrences: false },
+      : { currency: CURRENCY, frequency: 'MONTHLY', startDate: today, backfillPastOccurrences: false },
   });
 
   const categoryId = watch('categoryId');

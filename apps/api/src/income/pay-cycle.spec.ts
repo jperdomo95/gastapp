@@ -98,6 +98,33 @@ describe('computePayCycle', () => {
     });
   });
 
+  it('does not restart the cycle on a mid-month deposit from the main source', () => {
+    // e.g. a reimbursement matched to the salary by its bank description.
+    const result = cycle({
+      today: '2026-11-21',
+      incomes: [deposit('2026-10-29', '3000.00'), deposit('2026-11-10', '120.00')],
+      expenses: [spend('2026-11-01', '200.00')],
+    });
+    expect(result).toMatchObject({
+      start: '2026-10-29', paydayConfirmed: true, income: '3120.00', spent: '200.00',
+    });
+  });
+
+  it('keeps the first payday in a window when the source pays twice in it', () => {
+    const result = cycle({
+      today: '2026-11-21',
+      incomes: [deposit('2026-10-28', '2900.00'), deposit('2026-10-30', '100.00')],
+    });
+    expect(result).toMatchObject({ start: '2026-10-28', income: '3000.00' });
+  });
+
+  it('ignores income sources in a currency other than USD', () => {
+    const big: CycleSource = { ...SALARY, id: 'src-ves', amount: '100000.00', currency: 'VES', payDayFrom: 1, payDayTo: 3 };
+    const result = cycle({ today: '2026-11-21', sources: [big, SALARY] });
+    expect(result).toMatchObject({ currency: 'USD', start: '2026-10-28' });
+    expect(cycle({ today: '2026-11-21', sources: [big] })).toBeNull();
+  });
+
   it('counts on the paycheck inside the pay window even before it shows up', () => {
     const result = cycle({ today: '2026-11-29', incomes: [deposit('2026-10-29', '3000.00')] });
 
@@ -175,6 +202,18 @@ describe('computePayCycle', () => {
     expect(result?.committed).toBe('65.00');
   });
 
+  it('reserves a still-due charge at the price in force on its date', () => {
+    const result = cycle({
+      today: '2026-11-21',
+      incomes: [deposit('2026-10-29', '3000.00')],
+      subscriptions: [sub({
+        nextOccurrenceDate: '2026-11-25',
+        amountChanges: [{ amount: '25.00', effectiveFrom: '2026-11-25' }],
+      })],
+    });
+    expect(result).toMatchObject({ committed: '25.00', left: '2975.00' });
+  });
+
   it('spreads what is left over the remaining days', () => {
     const result = cycle({
       today: '2026-11-21',
@@ -205,25 +244,61 @@ describe('computePayCycle', () => {
       ]);
     });
 
-    it('averages the last seven days for the recent pace', () => {
+    it('averages the last seven full days for the recent pace', () => {
       const result = cycle({
         today: '2026-11-21',
         expenses: [
           spend('2026-10-28', '2000.00'), // payday transfers, outside the week
           spend('2026-11-15', '70.00'),
-          spend('2026-11-21', '70.00'),
+          spend('2026-11-20', '70.00'),
+          spend('2026-11-21', '999.00'), // today is not over yet
         ],
       });
 
       expect(result).toMatchObject({ recentPerDay: '20.00', recentDays: 7 });
     });
 
+    it('does not project a pace in the first days after payday', () => {
+      // Day 3: rent on payday would otherwise read as a 1500/day pace.
+      const result = cycle({
+        today: '2026-10-30',
+        incomes: [deposit('2026-10-28', '3000.00')],
+        expenses: [spend('2026-10-28', '1500.00'), spend('2026-10-29', '20.00')],
+      });
+
+      expect(result).toMatchObject({ recentDays: 0, recentPerDay: '0.00', projectedZeroDate: null });
+    });
+
+    it('leaves the payday and subscription charges out of the pace', () => {
+      const result = cycle({
+        today: '2026-11-05',
+        incomes: [deposit('2026-10-29', '3000.00')],
+        expenses: [
+          spend('2026-10-29', '1500.00'), // payday
+          { ...spend('2026-11-02', '70.00'), fromSubscription: true }, // already reserved
+          spend('2026-11-03', '60.00'),
+        ],
+      });
+
+      // Full days Oct 30 – Nov 4 (6 days): 60 / 6.
+      expect(result).toMatchObject({ recentDays: 6, recentPerDay: '10.00' });
+    });
+
     it('projects the day the money runs out at the recent pace', () => {
       // 3000 in, 2900 spent: 100 left at 50/day is gone by the end of the 23rd.
       const expenses = [spend('2026-10-28', '2550.00')];
-      for (let d = 15; d <= 21; d++) expenses.push(spend(`2026-11-${d}`, '50.00'));
+      for (let d = 14; d <= 20; d++) expenses.push(spend(`2026-11-${d}`, '50.00'));
 
       expect(cycle({ today: '2026-11-21', expenses })?.projectedZeroDate).toBe('2026-11-23');
+    });
+
+    it('has no zero day when the money lasts exactly to the day before payday', () => {
+      // Today Nov 27, latest payday Nov 30: 100 left at 50/day covers the 28th and 29th.
+      const expenses = [spend('2026-10-28', '2550.00')];
+      for (let d = 20; d <= 26; d++) expenses.push(spend(`2026-11-${d}`, '50.00'));
+
+      const result = cycle({ today: '2026-11-27', incomes: [deposit('2026-10-28', '3000.00')], expenses });
+      expect(result).toMatchObject({ left: '100.00', recentPerDay: '50.00', projectedZeroDate: null });
     });
 
     it('has no zero day when the money lasts until payday', () => {
@@ -252,6 +327,11 @@ describe('computePayCycle', () => {
       expect(result?.previous?.end).toBe('2026-10-28');
       expect(result?.previous?.cumulative.slice(0, 4)).toEqual(['1000.00', '1000.00', '1250.00', '1250.00']);
       expect(result?.previous?.cumulative).toHaveLength(30);
+    });
+
+    it('has no previous cycle when nothing was spent in it (no history yet)', () => {
+      const result = cycle({ today: '2026-11-21', expenses: [spend('2026-11-01', '5.00')] });
+      expect(result?.previous).toBeNull();
     });
   });
 
