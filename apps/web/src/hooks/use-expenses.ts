@@ -33,6 +33,7 @@ export function useImportExpenses() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['subscriptions', 'candidates'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
       qc.invalidateQueries({ queryKey: ['income'] });
     },
@@ -45,6 +46,7 @@ export function useCreateExpense() {
     mutationFn: async (dto: CreateExpenseDto) => (await api.post<Expense>('/expenses', dto)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['subscriptions', 'candidates'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
@@ -57,6 +59,7 @@ export function useUpdateExpense() {
       (await api.patch<Expense>(`/expenses/${id}`, dto)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['subscriptions', 'candidates'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });
@@ -68,6 +71,7 @@ export function useDeleteExpense() {
     mutationFn: (id: string) => api.delete(`/expenses/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['subscriptions', 'candidates'] });
       qc.invalidateQueries({ queryKey: ['reports'] });
     },
   });

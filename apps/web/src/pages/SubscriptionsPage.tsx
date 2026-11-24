@@ -1,21 +1,23 @@
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+import { Pause, Pencil, Play, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import {
   CURRENCY,
   createSubscriptionSchema,
   type CreateSubscriptionDto,
   type RecurrenceFrequency,
+  type RecurringCandidate,
   type Subscription,
   type SubscriptionStatus,
 } from '@gastapp/types';
 import {
-  useAddPriceChange, useCreateSubscription, useDeleteSubscription, useRemovePriceChange,
-  useSubscriptions, useUpdateSubscription,
+  useAddPriceChange, useCreateSubscription, useDeleteSubscription, useRecurringCandidates,
+  useRemovePriceChange, useSubscriptions, useUpdateSubscription,
 } from '@/hooks/use-subscriptions';
 import { useCategories } from '@/hooks/use-categories';
 import { useThemeStore } from '@/stores/theme-store';
+import { useDismissedCandidatesStore } from '@/stores/dismissed-candidates-store';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
@@ -64,6 +66,7 @@ export function SubscriptionsPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Subscription | null>(null);
   const [deleting, setDeleting] = useState<Subscription | null>(null);
+  const [tracking, setTracking] = useState<RecurringCandidate | null>(null);
   const { theme } = useThemeStore();
 
   const { data: subscriptions } = useSubscriptions({ status });
@@ -120,6 +123,8 @@ export function SubscriptionsPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {status === 'ACTIVE' && <RecurringCandidatesPanel onTrack={setTracking} />}
 
       {items.length === 0 && (
         <Card className="py-16 text-center">
@@ -221,6 +226,27 @@ export function SubscriptionsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Track a detected recurring charge */}
+      <Dialog open={tracking !== null} onOpenChange={(o) => !o && setTracking(null)}>
+        <DialogContent title="Track subscription">
+          {tracking && (
+            <SubscriptionForm
+              prefill={{
+                name: tracking.name,
+                amount: tracking.amount,
+                currency: CURRENCY, // the finder only suggests USD charges
+                frequency: tracking.frequency,
+                // From the next charge: starting on the last one (already in the
+                // ledger) would generate it a second time when it is dated today.
+                startDate: tracking.nextExpectedDate,
+                categoryId: tracking.categoryId,
+              }}
+              onDone={() => setTracking(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Delete dialog */}
       <ConfirmDialog
         open={deleting !== null}
@@ -245,9 +271,12 @@ export function SubscriptionsPage() {
 
 function SubscriptionForm({
   subscription,
+  prefill,
   onDone,
 }: {
   subscription?: Subscription;
+  /** Starting values for a new subscription, e.g. from a detected recurring charge. */
+  prefill?: Partial<CreateSubscriptionDto>;
   onDone: () => void;
 }) {
   const { data: categories } = useCategories();
@@ -271,7 +300,13 @@ function SubscriptionForm({
           categoryId: subscription.categoryId,
           backfillPastOccurrences: false,
         }
-      : { currency: CURRENCY, frequency: 'MONTHLY', startDate: today, backfillPastOccurrences: false },
+      : {
+          currency: CURRENCY,
+          frequency: 'MONTHLY',
+          startDate: today,
+          ...prefill,
+          backfillPastOccurrences: false,
+        },
   });
 
   const categoryId = watch('categoryId');
@@ -329,7 +364,7 @@ function SubscriptionForm({
           <Input
             id="sub-start"
             type="date"
-            defaultValue={subscription?.startDate ?? today}
+            defaultValue={subscription?.startDate ?? prefill?.startDate ?? today}
             onChange={(e) => setValue('startDate', e.target.value)}
           />
           {errors.startDate && <p className="text-xs text-red-400">{errors.startDate.message}</p>}
@@ -373,7 +408,15 @@ function SubscriptionForm({
         )}
       </div>
 
-      {!subscription && startsInThePast && (
+      {prefill && (
+        <p className="text-xs text-pulse-dim">
+          The charges found so far are already in your ledger, so tracking starts from the next
+          one. From then on GastApp adds each charge itself — skip those lines when you import
+          a bank statement, or they will count twice.
+        </p>
+      )}
+
+      {!subscription && !prefill && startsInThePast && (
         <label className="flex items-start gap-2 text-xs text-pulse-dim">
           <input
             type="checkbox"
@@ -475,5 +518,138 @@ function PriceChanges({ subscription }: { subscription: Subscription }) {
         <p className="text-xs text-red-400">Could not add — is there already one on that date?</p>
       )}
     </div>
+  );
+}
+
+/** Money per month, for ranking and the "could save" line. */
+const perMonth = (c: RecurringCandidate) => Number(c.amount) * PER_MONTH[c.frequency];
+
+const money = (amount: string | number, currency: string) =>
+  currency === 'USD' ? `$${usd(amount)}` : `${usd(amount)} ${currency}`;
+
+/**
+ * Charges that repeat in the ledger but are not tracked as subscriptions yet —
+ * usually what a bank-statement import brings in. "Track" turns one into a
+ * subscription; "Not a subscription" hides it in this browser.
+ */
+function RecurringCandidatesPanel({ onTrack }: { onTrack: (c: RecurringCandidate) => void }) {
+  const { data } = useRecurringCandidates();
+  const { keys: dismissed, dismiss, restoreAll } = useDismissedCandidatesStore();
+  const [showStopped, setShowStopped] = useState(false);
+
+  const untracked = (data ?? []).filter((c) => c.trackedSubscriptionId === null);
+  const visible = untracked.filter((c) => !dismissed.includes(c.key));
+  const live = visible.filter((c) => c.status === 'ACTIVE');
+  const stopped = visible.filter((c) => c.status === 'STOPPED');
+  const hiddenCount = untracked.length - visible.length;
+  const shown = showStopped ? [...live, ...stopped] : live;
+
+  if (live.length === 0 && stopped.length === 0) {
+    return hiddenCount > 0 ? (
+      <p className="text-right text-xs text-pulse-faint">
+        <button type="button" className="underline hover:text-pulse-text" onClick={restoreAll}>
+          Show {hiddenCount} dismissed suggestion{hiddenCount === 1 ? '' : 's'}
+        </button>
+      </p>
+    ) : null;
+  }
+
+  const liveUsdPerMonth = live
+    .filter((c) => c.currency === 'USD')
+    .reduce((acc, c) => acc + perMonth(c), 0);
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-start gap-3 border-b border-pulse-stroke px-4 py-3">
+        <Sparkles size={16} className="mt-0.5 shrink-0 text-pulse-v2" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-pulse-text">Found in your expenses</p>
+          <p className="text-xs text-pulse-faint">
+            {live.length > 0
+              ? `${live.length} repeating charge${live.length === 1 ? '' : 's'} you are not tracking`
+              : 'No live repeating charges you are not tracking'}
+            {liveUsdPerMonth > 0 && ` · about $${usd(liveUsdPerMonth)} / month`}
+          </p>
+        </div>
+      </div>
+
+      <ul className="divide-y divide-pulse-stroke">
+        {shown.map((c) => {
+          const isStopped = c.status === 'STOPPED';
+          return (
+            <li key={c.key} className={`flex items-center gap-3 px-4 py-3 ${isStopped ? 'opacity-60' : ''}`}>
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium text-pulse-text">
+                  <span className="truncate">{c.name}</span>
+                  {c.possibleDuplicate && (
+                    <span className="rounded-pulse-chip border border-amber-400/40 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400">
+                      Possible duplicate
+                    </span>
+                  )}
+                  {isStopped && (
+                    <span className="rounded-pulse-chip border border-pulse-stroke px-1.5 text-[10px] font-semibold uppercase tracking-wide text-pulse-dim">
+                      Looks stopped
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-pulse-faint">
+                  {FREQUENCY_LABELS[c.frequency]}
+                  {` · ${c.chargeCount} charges since ${formatDay(c.firstChargeDate)}`}
+                  {isStopped
+                    ? ` · last ${formatDay(c.lastChargeDate)}`
+                    : ` · next ~${formatDay(c.nextExpectedDate)}`}
+                  {c.confidence < 0.7 && ' · irregular'}
+                </p>
+              </div>
+
+              <span className="shrink-0 text-sm font-semibold text-pulse-text">
+                {money(c.amount, c.currency)}
+              </span>
+
+              <div className="flex shrink-0 items-center gap-0.5">
+                {!isStopped && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    aria-label={`Track ${c.name}`}
+                    onClick={() => onTrack(c)}
+                  >
+                    Track
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`${c.name} is not a subscription`}
+                  title="Not a subscription"
+                  onClick={() => dismiss(c.key)}
+                >
+                  <X size={13} />
+                </Button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {(stopped.length > 0 || hiddenCount > 0) && (
+        <div className="flex justify-end gap-4 border-t border-pulse-stroke px-4 py-2 text-xs text-pulse-faint">
+          {stopped.length > 0 && (
+            <button
+              type="button"
+              className="underline hover:text-pulse-text"
+              onClick={() => setShowStopped((v) => !v)}
+            >
+              {showStopped ? 'Hide' : 'Show'} {stopped.length} that look stopped
+            </button>
+          )}
+          {hiddenCount > 0 && (
+            <button type="button" className="underline hover:text-pulse-text" onClick={restoreAll}>
+              Show {hiddenCount} dismissed
+            </button>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
