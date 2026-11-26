@@ -9,6 +9,7 @@ import { SavingsPage } from './pages/SavingsPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { HelpPage } from './pages/HelpPage';
 import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth } from './components/auth/RequireAuth';
 
@@ -32,6 +33,7 @@ export function App() {
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/help" element={<HelpPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

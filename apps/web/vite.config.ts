@@ -11,7 +11,7 @@ export default defineConfig({
   },
   server: { port: 5173, host: true },
   test: {
-    // e2e/ belongs to Playwright, not vitest
-    exclude: [...configDefaults.exclude, 'e2e/**'],
+    // e2e/ and guide-screenshots/ belong to Playwright, not vitest
+    exclude: [...configDefaults.exclude, 'e2e/**', 'guide-screenshots/**'],
   },
 });

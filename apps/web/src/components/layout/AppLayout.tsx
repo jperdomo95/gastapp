@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, ListChecks, PieChart, Repeat, Tags, LogOut, Plus, Moon, Sun, Settings, Wallet, PiggyBank,
+  CircleHelp,
 } from 'lucide-react';
 import { useState } from 'react';
 import type React from 'react';
@@ -39,6 +40,7 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   '/categories':    { title: 'Categories',    subtitle: 'Organise your spending' },
   '/reports':       { title: 'Reports',       subtitle: 'Analytics & trends' },
   '/settings':      { title: 'Settings',      subtitle: 'Account preferences' },
+  '/help':          { title: 'Guide',         subtitle: 'How GastApp works' },
 };
 
 export function AppLayout() {
@@ -114,6 +116,17 @@ export function AppLayout() {
               >
                 <Settings size={14} />
               </NavLink>
+              <NavLink
+                to="/help"
+                aria-label="Guide"
+                className={({ isActive }) =>
+                  `rounded-lg p-1.5 transition-colors hover:bg-pulse-glass hover:text-pulse-text ${
+                    isActive ? 'text-pulse-v2' : 'text-pulse-faint'
+                  }`
+                }
+              >
+                <CircleHelp size={14} />
+              </NavLink>
               <Button variant="ghost" size="sm" onClick={() => logout.mutate()} className="flex-1 justify-start">
                 <LogOut size={14} /> Sign out
               </Button>
@@ -150,6 +163,9 @@ export function AppLayout() {
               </NavLink>
               <NavLink to="/settings" aria-label="Settings" className="rounded-lg p-1.5 text-pulse-faint">
                 <Settings size={16} />
+              </NavLink>
+              <NavLink to="/help" aria-label="Guide" className="rounded-lg p-1.5 text-pulse-faint">
+                <CircleHelp size={16} />
               </NavLink>
               <button onClick={toggle} aria-label="Toggle theme" className="rounded-lg p-1.5 text-pulse-faint">
                 {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
